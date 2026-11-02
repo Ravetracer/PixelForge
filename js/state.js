@@ -37,6 +37,7 @@ const S_base = {
   c64Mode: false,
   c64BgColor: '#000000',
   c64Format: null,     // mode id from c64/modes.js while c64Mode is on
+  c64Data: null,       // mode state for stateful modes (NUFLI: { mem, extra, template })
   pixelAspect: 1,      // displayed width of one image pixel (2 for C64 multicolor modes)
 
   // Selection (see selection.js)

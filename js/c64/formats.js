@@ -5,6 +5,7 @@
 //  format.read(bytes)        → VIC data model for format.mode
 //  format.write(model)       → file bytes (including the 2-byte load address)
 // ══════════════════════════════════════════════════════════════
+import { NUF_SIZE, unpackNup } from './nufli.js';
 
 const loadAddress = bytes => bytes.length >= 2 ? bytes[0] | (bytes[1] << 8) : -1;
 
@@ -306,6 +307,29 @@ const pixelPerfectPacked = {
   },
 };
 
+// ── NUFLI ─────────────────────────────────────────────────────
+
+/** NUFLI Editor (.nuf): memory $2000–$79ff incl. displayer; model = memory image (+ trailing bytes). */
+const nuf = {
+  id: 'nuf', label: 'NUFLI Editor', ext: 'nuf', mode: 'nufli', loadAddress: 0x2000,
+  detect: bytes => loadAddress(bytes) === 0x2000 && bytes.length >= 2 + NUF_SIZE && bytes.length <= 2 + NUF_SIZE + 256,
+  read: bytes => ({ mem: bytes.slice(2, 2 + NUF_SIZE), extra: bytes.slice(2 + NUF_SIZE), template: true }),
+  write(m) {
+    if (!m.template) throw new Error('NUFLI needs the displayer from a loaded .nuf/.nup file');
+    const out = withLoadAddress(0x2000, 2 + NUF_SIZE + m.extra.length);
+    out.set(m.mem, 2);
+    out.set(m.extra, 2 + NUF_SIZE);
+    return out;
+  },
+};
+
+/** NUFLI Editor packed (.nup): $0fff, `$fd ESC`, backwards RLE. */
+const nup = {
+  id: 'nup', label: 'NUFLI Editor (packed)', ext: 'nup', mode: 'nufli', loadAddress: 0x0fff,
+  detect: bytes => loadAddress(bytes) === 0x0fff && bytes[2] === 0xfd && bytes.length > 100,
+  read: bytes => ({ mem: unpackNup(bytes), extra: new Uint8Array(0), template: true }),
+};
+
 /** All known formats; the first writable one per mode is its save format. */
 export const FORMATS = [
   koala,
@@ -313,6 +337,7 @@ export const FORMATS = [
   fliGraph, fliGraphPacked, fliDesigner,
   afl,
   gunpaint, funpaint, pixelPerfect, pixelPerfectPacked,
+  nuf, nup,
 ];
 
 /** Default save format per mode. */

@@ -163,6 +163,7 @@ $('tracer-execute').addEventListener('click', () => {
   S.height = h;
   S.c64Mode    = doC64;
   S.c64Format  = doC64 ? 'multicolor' : null;
+  S.c64Data    = null;
   S.pixelAspect = doC64 ? 2 : 1;
   S.c64BgColor = bgColor;
   S.layerIdCtr  = 0;

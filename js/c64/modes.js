@@ -1,5 +1,6 @@
 import { S } from '../state.js';
 import { BG, closestAllowed, nearestC64Color, c64IndexOfHex } from './colors.js';
+import { decodeNufli } from './nufli.js';
 
 // ══════════════════════════════════════════════════════════════
 //  C64 graphics modes
@@ -299,7 +300,17 @@ const afli = {
   },
 };
 
-export const MODES = { multicolor, hires, fli, afli, ifli };
+// ── NUFLI — hires FLI every 2 lines + sprite underlays (see nufli.js) ─
+//    The model is the .nuf memory image kept in S.c64Data; the colour rules are
+//    too entangled for a per-pixel check, so each edit is re-encoded afterwards.
+
+const nufli = {
+  id: 'nufli', label: 'NUFLI', width: 320, height: 200, aspect: 1, charW: 8, bugChars: 0,
+  bgIsColor: true, stateful: true,
+  decode: m => decodeNufli(m.mem),
+};
+
+export const MODES = { multicolor, hires, fli, afli, ifli, nufli };
 
 export function currentMode() {
   return S.c64Mode ? MODES[S.c64Format] ?? null : null;
@@ -320,7 +331,7 @@ function indexAt(px, i) {
 /** Can (x, y) on the active layer take this colour without breaking the mode's colour rules? */
 export function canPaintInMode(x, y, r, g, b, a) {
   const mode = currentMode();
-  if (!mode) return true;
+  if (!mode || !mode.fits) return true;
   const bgIdx = c64IndexOfHex(S.c64BgColor);
   const toIdx = c => (c === bgIdx ? BG : c);
   const newIdx = a < 10 ? BG : toIdx(nearestC64Color(r, g, b));
@@ -351,6 +362,7 @@ export function modeRuleText(mode) {
     case 'hires':      return 'max 2 colours per 8×8 cell';
     case 'fli':        return 'max 2 colours per 4×1 row + 1 shared per 4×8 cell (left 3 columns: background only)';
     case 'afli':       return 'max 2 colours per 8×1 row (left 3 columns: background only)';
+    case 'nufli':      return 'NUFLI: ink + paper per 8×2 block plus one underlay colour per 48-px column';
     case 'ifli':       return 'max 2 colours per 4×1 row per frame + 1 shared by both frames per 4×8 cell (left 3 columns: background only)';
     default:           return 'colour limit of this mode';
   }

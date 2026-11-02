@@ -93,6 +93,7 @@ function loadFile(file) {
 
       S.c64Mode = false;
       S.c64Format = null;
+      S.c64Data = null;
       S.pixelAspect = 1;
       resetAdjPanel();
       setupCanvases();

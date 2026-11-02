@@ -20,6 +20,7 @@ function createNewImage(w, h, bg) {
   S.width = w; S.height = h;
   S.c64Mode    = false;
   S.c64Format  = null;
+  S.c64Data    = null;
   S.pixelAspect = 1;
   S.layerIdCtr = 0;
   S.layers = [createLayer('Layer 1', bg)];

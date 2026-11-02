@@ -25,7 +25,7 @@
       </div>
 
       <div class="tb-group hidden" id="c64-toolbar-group">
-        <label class="tb-label">C64 BG</label>
+        <label class="tb-label" id="c64-bg-label">C64 BG</label>
         <div class="c64-palette-picker" id="c64-bg-picker" title="C64 global background color">
           <button type="button" class="c64-picker-btn"></button>
           <div class="c64-picker-dropdown hidden"></div>
@@ -427,6 +427,7 @@
             <option value="fli">C64 FLI (multicolor) — 160×200</option>
             <option value="afli">C64 AFLI (hires FLI) — 320×200</option>
             <option value="ifli">C64 IFLI (interlaced FLI) — 2 × 160×200</option>
+            <option value="nufli">C64 NUFLI — 320×200 (load a .nuf to be able to save)</option>
           </select>
         </div>
         <div class="modal-field hidden" id="modal-c64-bg-field">
@@ -777,9 +778,14 @@
               <tr><td>FLI</td><td>160×200, wide pixels</td><td>Per 4×1 row 2 colours, plus 1 colour shared by the 4×8 cell, plus background</td><td>FLI Graph <code>.bml</code></td></tr>
               <tr><td>AFLI</td><td>320×200</td><td>2 colours per 8×1 row</td><td>AFLI Editor <code>.afl</code></td></tr>
               <tr><td>IFLI</td><td>2 frames of 160×200</td><td>FLI rules per frame; both frames share the 4×8 cell colour</td><td>Gunpaint <code>.gun</code></td></tr>
+              <tr><td>NUFLI</td><td>320×200</td><td>Ink + paper per 8×2 block, plus one sprite underlay colour per 48-px column that can change every 2 lines</td><td>NUFLI Editor <code>.nuf</code>*</td></tr>
             </tbody>
           </table>
           <div class="help-note">In the FLI modes (FLI, AFLI, IFLI) the left 3 character columns show the C64's <em>FLI bug</em> and can only hold background. They are hatched in the grid.</div>
+
+          <h3>NUFLI</h3>
+          <p>NUFLI combines hires FLI with sprites behind the bitmap, and even covers the FLI bug area with sprites. Its colour limits depend on each other across whole columns, so instead of blocking a stroke PixelForge fits it in after you release the mouse: pixels that NUFLI cannot show get the nearest possible colour, and a message tells you how many. Pixels outside the stroke are never changed.</p>
+          <p>* A <code>.nuf</code> file contains the NUFLI display program. PixelForge keeps it from the loaded file, so saving works for pictures loaded from <code>.nuf</code> or <code>.nup</code> files. A new NUFLI picture can be edited but not saved.</p>
 
           <h3>IFLI frames</h3>
           <p>IFLI shows two FLI pictures alternately, the second shifted by half a pixel. The eye mixes them, which gives more colours and finer horizontal detail. In PixelForge the frames are the layers <strong>Frame 1</strong> and <strong>Frame 2</strong>; select a layer to paint on that frame. The canvas shows the mixed result; hide one frame layer to see the other on its own.</p>
@@ -792,6 +798,7 @@
             <li><strong>FLI:</strong> FLI Graph / Blackmail (also packed), FLI Designer</li>
             <li><strong>AFLI:</strong> AFLI Editor</li>
             <li><strong>IFLI:</strong> Gunpaint, Funpaint II, Pixel Perfect (also packed <code>.ppp</code>)</li>
+            <li><strong>NUFLI:</strong> NUFLI Editor <code>.nuf</code> and packed <code>.nup</code></li>
           </ul>
           <p>A <strong>D64 disk image</strong> opens a C64-style directory listing. Files PixelForge can load are highlighted, with their format; click one to load it. Self-starting programs (usually packed picture viewers or demos) are shown dimmed and cannot be loaded.</p>
 

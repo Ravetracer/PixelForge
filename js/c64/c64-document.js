@@ -13,8 +13,9 @@ import { showToast } from '../toast.js';
 import { dropFloating, resetSelection } from '../selection.js';
 import { makeBgLayer, updateC64UI } from './c64-ui.js';
 import { BG, c64IndexOfHex, indicesToPixels, pixelsToIndices } from './colors.js';
-import { MODES, currentMode } from './modes.js';
+import { MODES, currentMode, modeRuleText } from './modes.js';
 import { detectFormat, formatForMode } from './formats.js';
+import { decodeNufli, emptyNufliMemory, encodeNufliRegion } from './nufli.js';
 
 // ══════════════════════════════════════════════════════════════
 //  C64 documents: open, load, export
@@ -24,8 +25,9 @@ import { detectFormat, formatForMode } from './formats.js';
  * Switch the editor to a C64 mode document built from an index buffer
  * (or one buffer per frame for interlaced modes).
  */
-export function openC64Document(modeId, indices, bgIdx) {
+export function openC64Document(modeId, indices, bgIdx, data = null) {
   const mode = MODES[modeId];
+  S.c64Data    = data;
   S.c64Mode    = true;
   S.c64Format  = modeId;
   S.pixelAspect = mode.aspect;
@@ -61,8 +63,16 @@ export function openC64Document(modeId, indices, bgIdx) {
 /** Empty document in a C64 mode. */
 export function newC64Document(modeId, bgHex) {
   const mode = MODES[modeId];
+  const bgIdx = c64IndexOfHex(bgHex);
+  if (modeId === 'nufli') {
+    // No displayer code without a loaded file: editable, but not savable
+    const data = { mem: emptyNufliMemory(), extra: new Uint8Array(0), template: false };
+    fillNufliBackground(data.mem, bgIdx);
+    openC64Document(modeId, new Uint8Array(mode.width * mode.height).fill(BG), bgIdx, data);
+    return;
+  }
   const empty = () => new Uint8Array(mode.width * mode.height).fill(BG);
-  openC64Document(modeId, mode.frames ? Array.from({ length: mode.frames }, empty) : empty(), c64IndexOfHex(bgHex));
+  openC64Document(modeId, mode.frames ? Array.from({ length: mode.frames }, empty) : empty(), bgIdx);
 }
 
 /** Decode a picture file; returns false if the format is not recognised. */
@@ -81,7 +91,7 @@ export function loadC64Bytes(bytes, name) {
   }
   for (const idx of mode.frames ? indices : [indices])
     for (let i = 0; i < idx.length; i++) if (idx[i] === bgIdx) idx[i] = BG;
-  openC64Document(format.mode, indices, bgIdx);
+  openC64Document(format.mode, indices, bgIdx, mode.stateful ? model : null);
   showToast(`Loaded ${name} — ${format.label} (${mode.label})`, 'success');
   return true;
 }
@@ -121,6 +131,13 @@ export function frameIndices() {
 export function enforceModeRules(pixelsList) {
   const mode = currentMode();
   const bgIdx = c64IndexOfHex(S.c64BgColor);
+  if (mode.id === 'nufli') {
+    // Full re-encode into a scratch copy of the memory image
+    const mem = new Uint8Array(S.c64Data.mem);
+    const target = solidIndices(pixelsList[0], bgIdx);
+    encodeNufliRegion(mem, target, new Float32Array(target.length).fill(1), FULL_RECT);
+    return [indicesToPixels(withBg(decodeNufli(mem), bgIdx), bgIdx)];
+  }
   const idxList = pixelsList.map(p => pixelsToIndices(p, S.width, S.height, bgIdx));
   const decoded = mode.frames
     ? mode.decode(mode.encode(idxList, bgIdx))
@@ -139,7 +156,11 @@ export function exportC64() {
     showToast(`${mode.label} requires ${mode.width}×${mode.height}`, 'error'); return;
   }
   const bgIdx = c64IndexOfHex(S.c64BgColor);
-  const bytes = format.write(mode.encode(mode.frames ? frameIndices() : currentIndices(), bgIdx));
+  if (mode.stateful && !S.c64Data?.template) {
+    showToast(`${mode.label} can only be saved for pictures loaded from a .nuf/.nup file`, 'error'); return;
+  }
+  const model = mode.stateful ? S.c64Data : mode.encode(mode.frames ? frameIndices() : currentIndices(), bgIdx);
+  const bytes = format.write(model);
   const name = `image.${format.ext}`;
   const a = document.createElement('a');
   a.download = name;
@@ -147,4 +168,60 @@ export function exportC64() {
   a.click();
   URL.revokeObjectURL(a.href);
   showToast(`Exported as ${name}`, 'success');
+}
+
+// ── NUFLI: re-encode after each edit ──────────────────────────
+
+const FULL_RECT = { x0: 0, y0: 0, x1: 319, y1: 199 };
+const KEEP_WEIGHT = 1000;   // existing pixels: keep unless impossible
+
+/** RGBA → palette indices with the background as a real colour. */
+function solidIndices(pixels, bgIdx) {
+  const idx = pixelsToIndices(pixels, S.width, S.height, bgIdx);
+  for (let i = 0; i < idx.length; i++) if (idx[i] === BG) idx[i] = bgIdx;
+  return idx;
+}
+
+function withBg(idx, bgIdx) {
+  for (let i = 0; i < idx.length; i++) if (idx[i] === bgIdx) idx[i] = BG;
+  return idx;
+}
+
+function fillNufliBackground(mem, bgIdx) {
+  const target = new Uint8Array(320 * 200).fill(bgIdx);
+  encodeNufliRegion(mem, target, new Float32Array(target.length).fill(1), FULL_RECT);
+}
+
+/**
+ * Called by commitHistory before a snapshot is taken: fit the pixels that
+ * changed since `prev` into the NUFLI memory image and show the result.
+ */
+export function afterC64Edit(prev) {
+  const mode = currentMode();
+  if (mode?.id !== 'nufli' || !S.c64Data || !prev) return;
+  const li = S.layers.findIndex(l => !l.isBgLayer);
+  const before = prev.layers.find(l => !l.isBgLayer)?.pixels;
+  if (li < 0 || !before || before.length !== S.layers[li].pixels.length) return;
+
+  const bgIdx = c64IndexOfHex(S.c64BgColor);
+  const target = solidIndices(S.layers[li].pixels, bgIdx);
+  const old = solidIndices(before, bgIdx);
+  const weight = new Float32Array(target.length);
+  const rect = { x0: 320, y0: 200, x1: -1, y1: -1 };
+  for (let p = 0; p < target.length; p++) {
+    if (target[p] === old[p]) { weight[p] = KEEP_WEIGHT; continue; }
+    weight[p] = 1;
+    const x = p % 320, y = (p / 320) | 0;
+    rect.x0 = Math.min(rect.x0, x); rect.x1 = Math.max(rect.x1, x);
+    rect.y0 = Math.min(rect.y0, y); rect.y1 = Math.max(rect.y1, y);
+  }
+  if (rect.x1 < 0) return;
+
+  encodeNufliRegion(S.c64Data.mem, target, weight, rect);
+  const shown = decodeNufli(S.c64Data.mem);
+  let adjusted = 0;
+  for (let p = 0; p < shown.length; p++) if (shown[p] !== target[p]) adjusted++;
+  S.layers[li].pixels.set(indicesToPixels(withBg(shown, bgIdx), bgIdx));
+  render();
+  if (adjusted) showToast(`${adjusted} pixel${adjusted > 1 ? 's' : ''} adjusted — ${modeRuleText(mode)}`, 'error');
 }

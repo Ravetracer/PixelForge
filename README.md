@@ -24,6 +24,7 @@ Each mode enforces the colour limits of the real hardware while painting.
 | FLI | FLI Graph / Blackmail (also packed), FLI Designer | FLI Graph `.bml` |
 | AFLI | AFLI Editor | `.afl` |
 | IFLI | Gunpaint, Funpaint II, Pixel Perfect (also packed) | Gunpaint `.gun` |
+| NUFLI | NUFLI Editor `.nuf`, packed `.nup` | `.nuf` (pictures loaded from a `.nuf`/`.nup` file) |
 
 D64 disk images open in a C64-style directory browser that highlights the pictures that can be loaded.
 

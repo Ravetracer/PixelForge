@@ -25,7 +25,12 @@ export function updateC64UI() {
     $('status-size').textContent = `${S.width} × ${S.height} px [C64 ${mode.label}]`;
     $('btn-export-koala').textContent = format ? `Save .${format.ext}` : 'Save';
     $('btn-export-koala').title = format ? `Export as ${format.label} (.${format.ext})` : `No file format for ${mode.label} yet`;
-    $('btn-export-koala').disabled = !format;
+    // NUFLI has no global background register: the picker would only desync canvas and data
+    $('c64-bg-label').classList.toggle('hidden', !!mode.stateful);
+    $('c64-bg-picker').classList.toggle('hidden', !!mode.stateful);
+    const needsTemplate = mode.stateful && !S.c64Data?.template;
+    $('btn-export-koala').disabled = !format || needsTemplate;
+    if (needsTemplate) $('btn-export-koala').title = `${mode.label} can only be saved for pictures loaded from a .nuf/.nup file (the file provides the displayer code)`;
 
     // Lock palette to Colodore 16 colours
     S.palette = [...COLODORE_HEX];

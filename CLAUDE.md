@@ -23,7 +23,7 @@ js/ - Application code as native ES modules (no bundler):
 - selection.js, selection-tools.js - Selection mask (`S.selection`), floating pixels (`S.floating`), transforms, clipboard, marching ants; mouse handling for select/lasso/wand/move
 - palette.js, color-controls.js, adjustments.js, reference.js - Palette/Lospec, colour pickers, image adjustments, reference image
 - io.js, document.js, preview-window.js, toolbar.js, shortcuts.js, toast.js, help.js - Files, new image, UI chrome
-- c64/ - C64 graphics modes: modes.js (colour rules, encode/decode per mode), formats.js (file formats: detect/read/write), c64-document.js (open/load/export), d64.js + disk-browser.js (D64 directory), colors.js, c64-ui.js
+- c64/ - C64 graphics modes: modes.js (colour rules, encode/decode per mode), formats.js (file formats: detect/read/write), c64-document.js (open/load/export), nufli.js (NUFLI memory model, decoder, region encoder), d64.js + disk-browser.js (D64 directory), colors.js, c64-ui.js
 - tracer/ - Image tracer (state, viewport, settings, dithering, image processing)
 
 The app must be served over HTTP (`npm start`); ES modules do not load from `file://`.

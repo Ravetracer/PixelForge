@@ -1,6 +1,7 @@
 import { S } from '../state.js';
 import { BG, closestAllowed, nearestC64Color, c64IndexOfHex } from './colors.js';
 import { decodeNufli } from './nufli.js';
+import { SUPERHIRES_MODES } from './superhires.js';
 
 // ══════════════════════════════════════════════════════════════
 //  C64 graphics modes
@@ -255,7 +256,7 @@ const fli = {
 
 const ifli = {
   id: 'ifli', label: 'IFLI (interlaced FLI)', width: 160, height: 200, aspect: 2, charW: 4, bugChars: 3,
-  frames: 2,
+  frames: 2, frameShift: 1,   // frame 2 is shown one hires pixel to the right
   /** `getOther` reads the other frame: both share the colour RAM of each 4×8 cell. */
   fits: (get, x, y, getOther) => fliCellFits(getOther ? [get, getOther] : [get], x, y),
   encode(frameIdx, bg) {
@@ -310,7 +311,7 @@ const nufli = {
   decode: m => decodeNufli(m.mem),
 };
 
-export const MODES = { multicolor, hires, fli, afli, ifli, nufli };
+export const MODES = { multicolor, hires, fli, afli, ifli, nufli, ...SUPERHIRES_MODES };
 
 // ── Tall pictures: pages of the native height ─────────────────
 //    The colour rules are local to character cells and lines, and a page
@@ -404,16 +405,17 @@ export function canPaintInMode(x, y, r, g, b, a) {
   };
   // FLI bug columns can only show background
   if (x < mode.bugChars * mode.charW) return newIdx === BG;
-  // Interlaced modes: the other frame shares parts of the cell (colour RAM)
+  // In hires-type modes bg is an ordinary colour of the cell
+  const resolve = mode.bgIsColor ? (g => (gx, gy) => { const c = g(gx, gy); return c === BG ? bgIdx : c; }) : (g => g);
+  const sprites = S.c64Data?.sprites ?? [];
+  // Interlaced modes: the other frame shares parts of the cell (colour RAM, SHI ink/paper)
   if (mode.frames) {
     const active = S.layers[S.activeLayerIndex];
     const other = S.layers.find(l => l.frame && l !== active)?.pixels;
-    const getOther = other && ((gx, gy) => toIdx(indexAt(other, (gy * W + gx) * 4)));
-    return mode.fits(get, x, y, getOther);
+    const getOther = other && resolve((gx, gy) => toIdx(indexAt(other, (gy * W + gx) * 4)));
+    return mode.fits(resolve(get), x, y, getOther, sprites, active?.frame);
   }
-  // In hires-type modes bg is an ordinary colour of the cell
-  if (mode.bgIsColor) return mode.fits((gx, gy) => { const c = get(gx, gy); return c === BG ? bgIdx : c; }, x, y);
-  return mode.fits(get, x, y);
+  return mode.fits(resolve(get), x, y, null, sprites);
 }
 
 /** Human-readable explanation of the rule, used in toasts. */
@@ -424,6 +426,9 @@ export function modeRuleText(mode) {
     case 'fli':        return 'max 2 colours per 4×1 row + 1 shared per 4×8 cell (left 3 columns: background only)';
     case 'afli':       return 'max 2 colours per 8×1 row (left 3 columns: background only)';
     case 'nufli':      return 'NUFLI: ink + paper per 8×2 block plus one underlay colour per 48-px column';
+    case 'shi':        return 'max 2 colours per 8×8 cell (shared by both frames) + front/back sprite colours';
+    case 'shx':        return 'max 2 colours per 8×1 row + the sprite overlay colour';
+    case 'shif':       return 'max 2 colours per 8×1 row per frame + that frame\'s front/back sprite colours';
     case 'ifli':       return 'max 2 colours per 4×1 row per frame + 1 shared by both frames per 4×8 cell (left 3 columns: background only)';
     default:           return 'colour limit of this mode';
   }

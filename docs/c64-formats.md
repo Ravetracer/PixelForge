@@ -40,9 +40,9 @@ Editing constraint for all of them: each 8x8 cell has 1 ink and 1 paper colour (
 | Art Studio 1.0-1.1 (OCP) | .art .aas .hpi | $2000 | 9009 (also 9003, 9002) | $2000-$3f3f (off 2) | $3f40-$4327 (off $1f42) | $4328 = border colour (9003/9009). 9009 has 6 more padding bytes, all 0 in the samples | **VERIFIED** with STREETSCENE.ART (9009) and MAKE FIRE.ART / C64FOREVER.ART (9003) |
 | Interpaint hires | .iph .ip64h | $4000 | 9002 | $4000-$5f3f (off 2) | $5f40-$6327 (off $1f42) | - | **VERIFIED** with MIDDLE EARTH.IPH and CELTICDOODLE.IPH |
 | Hi-Eddi (M&T) | .hed | $2000 | 9218 | $2000-$3f3f (off 2) | $4000-$43e7 (off $2002) | $43e8-$43ff unused | **VERIFIED** with FACESSPHERES.HED |
-| Doodle (OMNI) | .dd .ddl | $5c00 | 9218 (RECOIL also accepts 9026, 9217, 9346) | $6000-$7f3f (off $402) | $5c00-$5fe7 (off 2) | $5fe8-$5fff unused | **VERIFIED** with VENICE.DDL. codebase64 lists the bitmap at "$7000"; that is a typo |
-| Doodle packed | .jj | $5c00 | variable | RLE of the 9216 bytes above: `$FE VALUE COUNT` = VALUE repeated COUNT times, any other byte is a literal | | | UNVERIFIED (no sample) |
-| Image System hires | .ish | $4000 | 9194 | $4000-$5f3f (off 2) | $6000-$63e7 (off $2002) | | UNVERIFIED |
+| Doodle (OMNI) | .dd .ddl | $5c00 (any load address with the .dd/.ddl extension) | 9218 (RECOIL also accepts 9026, 9217, 9346) | $6000-$7f3f (off $402) | $5c00-$5fe7 (off 2) | $5fe8-$5fff unused | **VERIFIED** with VENICE.DDL and RECOIL's `midear.dd` (load $1c00). codebase64 lists the bitmap at "$7000"; that is a typo |
+| Doodle packed | .jj | $5c00 | variable | RLE of the Doodle layout from $5c00: `$FE VALUE COUNT` = VALUE repeated COUNT times, any other byte is a literal. The stream may end after $400 + 8000 = 9024 bytes (screen + bitmap) | | | **VERIFIED** with RECOIL's `godot.JJ` and `JJMACROSS.JJ` (the latter unpacks to exactly 9024 bytes) |
+| Image System hires | .ish | $4000 | 9194 | $4000-$5f3f (off 2) | $6000-$63e7 (off $2002) | | **VERIFIED** with RECOIL's `abydos-pyriel.ish` |
 | Hires bitmap mono | .hbw .hir .fgs | $2000 | 8002 | $2000-$3f3f | none | white on black | **VERIFIED** with ROBOT-HW.HBW |
 
 Hires Manager (Cosmos), `.him`, is hires FLI and is covered under AFLI in section 4.
@@ -123,7 +123,7 @@ Sources:
 - **Editing constraint**: 2 colours (ink and paper) per 8x1 pixel row of each cell, chosen freely
   per line. Columns 0-2 are the FLI bug, leaving 296x200 usable.
 - **Status**:
-  - File offsets: UNVERIFIED. No raw .afl example exists; RECOIL `DecodeAfl` and codebase64 agree.
+  - File offsets: **VERIFIED** with RECOIL's `LOGO.AFL`.
   - Pixel model: **MODEL-VERIFIED**. `afli_examples/aflipic.prg` was depacked with a small 6502
     runner (`research/emu6502.js`). Its RAM (bitmap $4000, screens $6000+k*$400) renders correctly
     with the AFLI rule: `png/emu_aflipic_A.png`.
@@ -369,6 +369,29 @@ update is not available for that underlay column's colour change.
   colour entries in free slots.
 - Converting a picture from scratch needs a Mufflon/NUFLIX-style optimiser.
 
+### Displayer template (writing new pictures)
+
+The displayer is self-contained. Disassembly of the newer editor version (DONTMESS01-05) shows what it
+reads besides the picture:
+
+| Range | Content |
+|---|---|
+| $3000-$31ff | init (copies the VIC table, generates speedcode at $1000 from the colour table), raster IRQ |
+| $3300-$33d7 | speedcode templates, per-row tables, and the table-entry decoder at $33b0. $33d8-$33ff is overwritten at runtime from $73d8 |
+| $3fc0-$3fef | values copied to $d000-$d02f at start (sprite X, $d010, $d011, $d015 = $ff, $d017, $d01b = $ff, $d01c = $80, $d01d = $7e) |
+| $3ff0-$3ff7 | initial bug-area sprite colours (see above) |
+| colour table | 8 sprite Y moves |
+
+Table-entry decoder ($33b0) of the newer version: `$0x` → `STY $d028+column` with x (underlay colour);
+`$4x` → `LDY #$d4 : STY $d04x` (sprite Y register, a mirror of $d00x); any other `$hx` → `STY $d020+h`
+with the entry as value. The older version (79END, TRAIN2009) uses `$1x` for the Y moves and `$2x` for
+the border instead, and differs at $30c9 and in $33b0-$33cd. The editor places the 8 Y moves in free
+slots of rows 62..84 of any column.
+
+PixelForge builds new pictures from the DONTMESS01 template: the three ranges above (identical in all
+5 DONTMESS files), the fixed sprite pointers and the Y moves 1/71:$49 1/77:$41 1/78:$4f 1/80:$43
+2/63:$45 2/67:$47 2/72:$4b 2/77:$4d (column/row:entry). The encoder treats these slots as locked.
+
 ### .nup (packed)
 
 - **Header**: load $0fff. Offset 2 ($0fff) = `$fd` (signature), offset 3 = escape byte.
@@ -439,8 +462,14 @@ This is the most common super-hires editor format with real samples.
   - 2 sprite colours per 24-px column, fixed for the whole height.
   - Ink and paper per 8x8 cell, shared by both frames.
   - Effectively 4 colours per 8 px, plus the interlace mix.
-- **Status**: **VERIFIED** with V1.3B samples from CSDb release 35973 (GIRL 00-04, BORIS, …;
-  `png/shi_*.png`).
+- **Sprite colours**: in all 33 V1.3B samples the 4 front bytes are equal, and so are the 4 back bytes.
+  The editor uses one front and one back colour for the whole picture, and PixelForge does the same.
+  $3bf7-$3bfa (offsets) hold a copy of front and back plus two editor UI colours.
+- **Packer**: control byte c < $80 = c literals, c >= $80 = run of c-$80. Runs of 3 or more (max 127)
+  become runs, and literal blocks hold up to 127 bytes. This reproduces the samples **byte-identically**
+  (apart from 2-4 padding bytes the editor appends). PixelForge saves packed (flag 1).
+- **Status**: **VERIFIED** with the V1.3B samples from CSDb releases 35973 and 107898 (both "SHIE 1.3B"
+  disks: GIRL 00-04, BORIS, …). Decode → encode → decode is exact for all of them.
   - Files from "disk B" unpack to 15479 bytes: 127 extra trailing bytes, decoded fine.
   - **SHIE V1.2 files** unpack to 12493 bytes and use a different, older layout. The editor ships a
     "1.2&1.3 TO 1.3B" converter. That layout is UNKNOWN and not decoded.
@@ -497,7 +526,10 @@ Other plain super-hires formats (RECOIL; UNVERIFIED, no samples):
   - Otherwise hires FLI with screen `y&7` and column `11 + (x>>3)`.
 - **Editing constraint**: per 8x1 run, ink + paper (FLI, every line) plus the one global sprite
   colour at any pixel. No sprite byte is shared between lines (checked: 3024 bytes, 0 shared).
-- **Status**: **VERIFIED** with DATA 02 (`png/shx_wild_west_tank_girl__DATA_02*.png`).
+- **Non-picture bytes** (DATA 02): every screen is filled with $bb outside the picture cells, the
+  pointer tables above, $43e8 = $0b, and sprite block $ef ($7bc0-$7bfe) = $ff. Sprite blocks never
+  overlap the picture's bitmap columns. PixelForge writes these bytes itself (no template needed).
+- **Status**: **VERIFIED** with DATA 02. The repack is byte-identical, and decode → encode → decode is exact.
 - **Sources**: RECOIL `DecodeShx`; codebase64 "SHFLI-XL" (pointer table).
 
 **Crest Super Hires FLI Editor (.shf)**: UNVERIFIED, no sample. The CSDb editor disk contains only
@@ -540,8 +572,12 @@ the editor.
 - **Editing constraint**: 96x167.
   - Per 8x1 run per frame: ink + paper + 2 global sprite colours (front and back per frame).
   - Interlace mix between the frames.
+- **Packer**: tokenize the frame from its end. Runs of 3 or more (max 256), or any run of the escape
+  value, become `ESC COUNT VALUE` (reading order). The escape is the least frequent byte value. This
+  reproduces all three samples **byte-identically**. The last byte of each frame ($1fef) is $ff in the
+  samples, and bytes $07d4-$07ff are 0.
 - **Status**: **VERIFIED** with DOMINA, ROBOTICA, GOLDFISH .SHIF from `flip.D64` (CSDb 158847/12669).
-  The stream lengths match exactly and the images are correct (`png/shif_*.png`).
+  The stream lengths match exactly, the images are correct, and the repack is byte-identical.
 - **Note**: this linear file layout is the editor's own. The editor converts it to VIC memory
   (2 x 8 screens + sprite pointer tables as in codebase64 "SHIFLI") at display time.
 - **Sources**: RECOIL `DecodeC64Sif`, `UifStream.StartSifFrame`; codebase64 "SHIFLI".
@@ -580,3 +616,11 @@ Other locations:
 
 Note on licensing: RECOIL's `recoil.fu` header now says `SPDX-License-Identifier: MIT` (2009-2026),
 not GPL. These scripts are independent re-implementations; no code was copied.
+
+## Pictures taller than one screen (PixelForge)
+
+Every mode keeps its width but accepts any height in its line steps (8 lines; SHIF: 1 line). The picture
+is split into pages of the mode's native height (200; SHF-XL 168; SHIF 167). Each page is encoded with the
+standard encoder and saved as one standard file, so every page can be viewed with the original editor or
+viewer. The last page is padded with the background colour. NUFLI keeps one memory image per page, and the
+super hires sprite colours are shared by all pages.

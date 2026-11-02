@@ -3,7 +3,7 @@ import { $ } from './dom.js';
 import { render } from './render.js';
 import { updateCursorForLock } from './input.js';
 import { renderLayerPanel } from './layer-panel.js';
-import { syncC64BgLayer } from './c64/c64-ui.js';
+import { syncC64BgLayer, updateSpritePickers } from './c64/c64-ui.js';
 import { cancelFloating } from './selection.js';
 import { afterC64Edit } from './c64/c64-document.js';
 
@@ -58,6 +58,7 @@ export function undo() {
   S.historyIndex--;
   restoreSnapshot(S.history[S.historyIndex]);
   syncC64BgLayer();
+  updateSpritePickers();
   render(); renderLayerPanel(); updateUndoRedo(); updateCursorForLock();
 }
 
@@ -67,6 +68,7 @@ export function redo() {
   S.historyIndex++;
   restoreSnapshot(S.history[S.historyIndex]);
   syncC64BgLayer();
+  updateSpritePickers();
   render(); renderLayerPanel(); updateUndoRedo(); updateCursorForLock();
 }
 

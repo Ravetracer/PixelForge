@@ -20,8 +20,8 @@ export function setupCanvases() {
   // Pixel canvases render at native image resolution; CSS scales them up.
   // This keeps rendering cost constant regardless of zoom level.
   bgCanvas.width   = S.width; bgCanvas.height   = S.height;
-  // Interlaced modes render the blended picture at hires width (frame 2 is shifted by half a pixel)
-  mainCanvas.width = S.width * (isInterlaced() ? 2 : 1); mainCanvas.height = S.height;
+  // Interlaced modes render the blended picture at hires width (IFLI: frame 2 is shifted by half a pixel)
+  mainCanvas.width = S.width * (isInterlaced() ? S.pixelAspect : 1); mainCanvas.height = S.height;
   bgCanvas.style.width    = cw + 'px'; bgCanvas.style.height    = ch + 'px';
   mainCanvas.style.width  = cw + 'px'; mainCanvas.style.height  = ch + 'px';
 
@@ -112,8 +112,8 @@ function renderLayers() {
 }
 
 /**
- * Interlaced C64 modes (IFLI): the C64 alternates both frames every video frame,
- * frame 2 displayed one hires pixel to the right; the eye sees the average colour.
+ * Interlaced C64 modes (IFLI, SHI, SHIF): the C64 alternates both frames every
+ * video frame (IFLI: frame 2 one hires pixel to the right); the eye sees the average colour.
  * Hidden frames drop out of the blend, so each frame can be inspected on its own.
  */
 function renderInterlace() {
@@ -121,16 +121,18 @@ function renderInterlace() {
 }
 
 /**
- * Picture of the given IFLI frames at hires width (frame 2 shifted one hires
- * pixel right). Several frames are averaged; hidden frame layers are skipped.
+ * Picture of the given interlace frames at hires width (frame n shifted by
+ * (n−1) × mode.frameShift hires pixels). Several frames are averaged; hidden
+ * frame layers are skipped.
  */
 export function interlaceImage(frameNumbers) {
-  const W = S.width, H = S.height, OW = W * 2;
+  const W = S.width, H = S.height, aspect = S.pixelAspect, OW = W * aspect;
+  const frameShift = currentMode()?.frameShift ?? 0;
   const bgLayer = S.layers.find(l => l.isBgLayer);
   const bg = hexToRgba(S.c64BgColor);
   const bgAlpha = bgLayer?.visible === false ? 0 : 255;
   const sources = frameNumbers
-    .map(n => ({ layer: S.layers.find(l => l.frame === n), shift: n - 1 }))
+    .map(n => ({ layer: S.layers.find(l => l.frame === n), shift: (n - 1) * frameShift }))
     .filter(({ layer }) => layer?.visible)
     .map(({ layer, shift }) => ({ px: layerPixelsForDisplay(layer), shift }));
   const out = new ImageData(OW, H);
@@ -139,7 +141,7 @@ export function interlaceImage(frameNumbers) {
     for (let hx = 0; hx < OW; hx++) {
       let r = 0, g = 0, b = 0, a = 0;
       for (const { px, shift } of sources) {
-        const x = (hx - shift) >> 1;
+        const x = Math.floor((hx - shift) / aspect);
         const i = (y * W + x) * 4;
         if (x < 0 || px[i + 3] < 10) { r += bg.r; g += bg.g; b += bg.b; a += bgAlpha; }
         else { r += px[i]; g += px[i + 1]; b += px[i + 2]; a += 255; }

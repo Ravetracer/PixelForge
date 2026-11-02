@@ -1341,3 +1341,7 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
 .preview-toggle.active { border-color: var(--accent); color: var(--accent); }
 .preview-toggle:disabled { opacity: .4; cursor: default; }
 #mini-preview.crt { border-radius: 10px; }
+
+/* Super hires sprite colour registers in the C64 toolbar group */
+.c64-sprite-colors { display: flex; align-items: center; gap: 4px; }
+.c64-sprite-pickers { display: flex; gap: 3px; }

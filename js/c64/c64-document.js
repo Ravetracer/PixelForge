@@ -2,7 +2,7 @@ import { C64_PALETTE_RGB } from '../constants.js';
 import { S } from '../state.js';
 import { off, offCtx } from '../dom.js';
 import { rgbaToHex } from '../color.js';
-import { snapshotLayers, updateUndoRedo } from '../history.js';
+import { commitHistory, snapshotLayers, updateUndoRedo } from '../history.js';
 import { render, setupCanvases } from '../render.js';
 import { fitZoom } from '../view.js';
 import { updateCursorForLock } from '../input.js';
@@ -160,6 +160,33 @@ export function enforceModeRules(pixelsList) {
     ? enforcePages(mode, idxList, bgIdx, S.height, modeParams())
     : idxList.map(idx => enforcePages(mode, idx, bgIdx, S.height, modeParams()));
   return decoded.map(idx => indicesToPixels(idx, bgIdx));
+}
+
+/**
+ * Change one sprite colour register of a super hires picture: the pixels of
+ * that sprite layer change colour, everything else stays (like on the C64).
+ */
+export function setSpriteColor(i, hex) {
+  const mode = currentMode();
+  if (!mode?.spriteColors || !S.c64Data?.sprites) return;
+  dropFloating();
+  const bgIdx = c64IndexOfHex(S.c64BgColor);
+  const sprites = [...S.c64Data.sprites];
+  sprites[i] = c64IndexOfHex(hex);
+  const models = encodePages(mode, mode.frames ? frameIndices() : currentIndices(), bgIdx, S.height, S.c64Data.sprites);
+  models.forEach(m => mode.setSprites(m, sprites));
+  const decoded = models.map(m => mode.decode(m));
+  const join = pages => joinPages(pages, mode.width, S.height, mode.height);
+  const layers = mode.frames
+    ? S.layers.filter(l => l.frame).sort((a, b) => a.frame - b.frame)
+    : [S.layers.find(l => !l.isBgLayer)];
+  layers.forEach((layer, f) => {
+    const idx = join(decoded.map(d => (mode.frames ? d[f] : d)));
+    layer.pixels.set(indicesToPixels(withBg(idx, bgIdx), bgIdx));
+  });
+  S.c64Data.sprites = sprites;
+  render();
+  commitHistory();
 }
 
 /**

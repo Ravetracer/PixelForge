@@ -6,6 +6,7 @@
 //  format.write(model)       → file bytes (including the 2-byte load address)
 // ══════════════════════════════════════════════════════════════
 import { NUF_SIZE, unpackNup } from './nufli.js';
+import { SHIF_FRAME_SIZE, SHI_SIZE, SHX_SIZE } from './superhires.js';
 
 const loadAddress = bytes => bytes.length >= 2 ? bytes[0] | (bytes[1] << 8) : -1;
 
@@ -42,10 +43,11 @@ const koala = {
 // ── Hires bitmaps ─────────────────────────────────────────────
 
 /** Hires format with bitmap and screen RAM at fixed file offsets. */
-function hiresFormat({ id, label, ext, load, sizes, bitmap, screen, size = sizes[0], extra }) {
+function hiresFormat({ id, label, ext, load, sizes, bitmap, screen, size = sizes[0], extra, exts = [] }) {
   return {
     id, label, ext, mode: 'hires', loadAddress: load,
-    detect: bytes => loadAddress(bytes) === load && sizes.includes(bytes.length),
+    // files with one of `exts` are accepted at any load address
+    detect: (bytes, e) => (loadAddress(bytes) === load || exts.includes(e)) && sizes.includes(bytes.length),
     read: bytes => ({
       bitmap: bytes.slice(bitmap, bitmap + 8000),
       screen: screen === null ? new Uint8Array(1000).fill(0x10) : bytes.slice(screen, screen + 1000),
@@ -67,18 +69,18 @@ const interpaintHires = hiresFormat({ id: 'interpaint-hires', label: 'Interpaint
 const hiEddi = hiresFormat({ id: 'hi-eddi', label: 'Hi-Eddi', ext: 'hed', load: 0x2000,
   sizes: [9218], bitmap: 2, screen: 0x2002 });
 const doodle = hiresFormat({ id: 'doodle', label: 'Doodle', ext: 'dd', load: 0x5c00,
-  sizes: [9218, 9217, 9026, 9346], bitmap: 0x402, screen: 2 });
+  sizes: [9218, 9217, 9026, 9346], bitmap: 0x402, screen: 2, exts: ['dd', 'ddl'] });
 const imageSystemHires = hiresFormat({ id: 'image-system-hires', label: 'Image System Hires', ext: 'ish', load: 0x4000,
   sizes: [9194], bitmap: 2, screen: 0x2002 });
 const hiresMono = hiresFormat({ id: 'hires-mono', label: 'Hires bitmap (mono)', ext: 'hbw', load: 0x2000,
   sizes: [8002], bitmap: 2, screen: null });
 
-/** Doodle packed (.jj): `$FE VALUE COUNT` runs, other bytes literal; unpacks to the 9216 Doodle bytes. */
+/** Doodle packed (.jj): `$FE VALUE COUNT` runs, other bytes literal; unpacks to screen RAM + bitmap ($400 + 8000 bytes). */
 const doodlePacked = {
   id: 'doodle-packed', label: 'Doodle (packed)', ext: 'jj', mode: 'hires', loadAddress: 0x5c00,
   detect(bytes, ext) {
     if (ext !== 'jj' || loadAddress(bytes) !== 0x5c00) return false;
-    return unpackDoodle(bytes)?.length >= 9216;
+    return unpackDoodle(bytes)?.length >= DOODLE_PACKED_SIZE;
   },
   read(bytes) {
     const data = unpackDoodle(bytes);
@@ -86,9 +88,11 @@ const doodlePacked = {
   },
 };
 
+const DOODLE_PACKED_SIZE = 0x400 + 8000;
+
 function unpackDoodle(bytes) {
   const out = [];
-  for (let i = 2; i < bytes.length && out.length < 9216; i++) {
+  for (let i = 2; i < bytes.length && out.length < DOODLE_PACKED_SIZE; i++) {
     if (bytes[i] === 0xfe) {
       if (i + 2 >= bytes.length) return null;
       for (let n = 0; n < bytes[i + 2]; n++) out.push(bytes[i + 1]);
@@ -329,6 +333,128 @@ const nup = {
   read: bytes => ({ mem: unpackNup(bytes), extra: new Uint8Array(0) }),
 };
 
+// ── Super hires ───────────────────────────────────────────────
+
+/**
+ * SHI packing (forward from offset 3): a control byte c < $80 is followed by
+ * c literal bytes; c >= $80 repeats the next byte c−$80 times.
+ */
+function unpackShi(bytes) {
+  const out = new Uint8Array(SHI_SIZE);
+  out.set(bytes.subarray(0, 3));
+  let w = 3, r = 3;
+  while (w < SHI_SIZE) {
+    if (r >= bytes.length) return null;
+    const c = bytes[r++];
+    if (c < 0x80) {
+      if (r + c > bytes.length) return null;
+      for (let i = 0; i < c && w < SHI_SIZE; i++) out[w++] = bytes[r++];
+    } else {
+      const v = bytes[r++];
+      for (let i = 0; i < c - 0x80 && w < SHI_SIZE; i++) out[w++] = v;
+    }
+  }
+  return out;
+}
+
+function packShi(data) {
+  const out = [...data.subarray(0, 2), 1];
+  let lit = [];
+  const flush = () => { if (lit.length) { out.push(lit.length, ...lit); lit = []; } };
+  for (let i = 3; i < data.length;) {
+    let n = 1;
+    while (i + n < data.length && data[i + n] === data[i] && n < 0x7f) n++;
+    if (n >= 3) { flush(); out.push(0x80 + n, data[i]); i += n; continue; }
+    lit.push(data[i++]);
+    if (lit.length === 0x7f) flush();
+  }
+  flush();
+  return Uint8Array.from(out);
+}
+
+/** Super Hires Interlace Editor V1.3B (.shi): $7fff, packed flag, 96×200 interlace. */
+const shiFormat = {
+  id: 'shi', label: 'Super Hires Interlace Editor', ext: 'shi', mode: 'shi', loadAddress: 0x7fff,
+  detect(bytes) {
+    if (loadAddress(bytes) !== 0x7fff) return false;
+    if (bytes[2] === 0) return bytes.length === SHI_SIZE;
+    return bytes[2] === 1 && unpackShi(bytes) !== null;
+  },
+  read(bytes) {
+    const data = bytes[2] === 0 ? bytes.slice(0, SHI_SIZE) : unpackShi(bytes);
+    return { bytes: data, sprites: [data[0x3bef] & 15, data[0x3bf3] & 15] };
+  },
+  write: m => packShi(m.bytes),
+};
+
+/** SHF-XL Edit (.shx): $4000, unpacked hires FLI + sprite overlay, 144×168. */
+const shxFormat = {
+  id: 'shx', label: 'SHF-XL Edit', ext: 'shx', mode: 'shx', loadAddress: 0x4000,
+  detect: bytes => loadAddress(bytes) === 0x4000 && bytes.length === SHX_SIZE,
+  read: bytes => ({ bytes: bytes.slice(), sprites: [bytes[0x3eb] & 15] }),
+  write: m => m.bytes.slice(),
+};
+
+/**
+ * SHIF frame block: [word W][ESC][data], W − $9402 bytes after the word.
+ * The data is read backwards (`ESC COUNT(0=256) VALUE` in reading order,
+ * else literal) and fills the 8176-byte frame from its end.
+ */
+function unpackShifFrame(bytes, o) {
+  if (o + 3 > bytes.length) return null;
+  const len = (bytes[o] | (bytes[o + 1] << 8)) - 0x9402;
+  if (len <= 1 || o + 2 + len > bytes.length) return null;
+  const esc = bytes[o + 2], lo = o + 3;
+  const out = new Uint8Array(SHIF_FRAME_SIZE);
+  let w = SHIF_FRAME_SIZE - 1, r = o + 2 + len;
+  while (w >= 0) {
+    if (r <= lo) return null;
+    const v = bytes[--r];
+    if (v === esc) {
+      if (r - 2 < lo) return null;
+      let n = bytes[--r] || 256;
+      const value = bytes[--r];
+      while (n-- && w >= 0) out[w--] = value;
+    } else out[w--] = v;
+  }
+  return { frame: out, next: o + 2 + len };
+}
+
+function packShifFrame(frame) {
+  const count = new Array(256).fill(0);
+  frame.forEach(v => count[v]++);
+  const esc = count.indexOf(Math.min(...count));
+  const tokens = [];                       // reading order (from the frame's end)
+  for (let i = frame.length - 1; i >= 0;) {
+    let n = 1;
+    while (i - n >= 0 && frame[i - n] === frame[i] && n < 256) n++;
+    if (n >= 3 || frame[i] === esc) { tokens.push(esc, n & 0xff, frame[i]); i -= n; }
+    else tokens.push(frame[i--]);
+  }
+  const len = 1 + tokens.length;
+  return Uint8Array.from([(0x9402 + len) & 0xff, (0x9402 + len) >> 8, esc, ...tokens.reverse()]);
+}
+
+/** Crest SHIF-Editor (.shif): two packed frame blocks + front/back colours per frame. */
+const shifFormat = {
+  id: 'shif', label: 'SHIF-Editor', ext: 'shif', mode: 'shif', loadAddress: null,
+  detect(bytes) {
+    const a = unpackShifFrame(bytes, 0);
+    const b = a && unpackShifFrame(bytes, a.next);
+    return !!b && b.next + 4 === bytes.length;
+  },
+  read(bytes) {
+    const a = unpackShifFrame(bytes, 0), b = unpackShifFrame(bytes, a.next);
+    return { frames: [a.frame, b.frame], sprites: Array.from(bytes.slice(-4), v => v & 15) };
+  },
+  write(m) {
+    const [a, b] = m.frames.map(packShifFrame);
+    const out = new Uint8Array(a.length + b.length + 4);
+    out.set(a); out.set(b, a.length); out.set(m.sprites, a.length + b.length);
+    return out;
+  },
+};
+
 /** All known formats; the first writable one per mode is its save format. */
 export const FORMATS = [
   koala,
@@ -337,6 +463,7 @@ export const FORMATS = [
   afl,
   gunpaint, funpaint, pixelPerfect, pixelPerfectPacked,
   nuf, nup,
+  shiFormat, shxFormat, shifFormat,
 ];
 
 /** Default save format per mode. */

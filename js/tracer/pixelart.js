@@ -399,3 +399,36 @@ export function splitInterlaced(targetRgb, w2, h, paletteRgb) {
   }
   return [f1, f2];
 }
+
+/**
+ * Split a picture into two interlace frames shown on top of each other
+ * (no shift, SHI/SHIF): every pixel becomes the palette pair whose average
+ * is closest. Frame 1 gets the darker colour, so both frames stay coherent.
+ */
+export function splitBlend(targetRgb, w, h, paletteRgb) {
+  const n = paletteRgb.length;
+  const lum = paletteRgb.map(([r, g, b]) => rgbToLab(r, g, b)[0]);
+  const pairs = [];
+  for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) {
+    if (lum[a] > lum[b] || (lum[a] === lum[b] && a > b)) continue;
+    const [r1, g1, b1] = paletteRgb[a], [r2, g2, b2] = paletteRgb[b];
+    pairs.push({ a, b, lab: rgbToLab((r1 + r2) >> 1, (g1 + g2) >> 1, (b1 + b2) >> 1) });
+  }
+  const f1 = new Uint8Array(w * h), f2 = new Uint8Array(w * h);
+  const cache = new Map();
+  for (let p = 0; p < w * h; p++) {
+    const key = (targetRgb[p * 4] << 16) | (targetRgb[p * 4 + 1] << 8) | targetRgb[p * 4 + 2];
+    let best = cache.get(key);
+    if (!best) {
+      const [L, A, B] = rgbToLab(targetRgb[p * 4], targetRgb[p * 4 + 1], targetRgb[p * 4 + 2]);
+      let d = Infinity;
+      for (const pair of pairs) {
+        const e = (L - pair.lab[0]) ** 2 + (A - pair.lab[1]) ** 2 + (B - pair.lab[2]) ** 2;
+        if (e < d) { d = e; best = pair; }
+      }
+      cache.set(key, best);
+    }
+    f1[p] = best.a; f2[p] = best.b;
+  }
+  return [f1, f2];
+}

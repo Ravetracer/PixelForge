@@ -20,7 +20,7 @@ import { applyDithering } from './dither.js';
 import { applyEnhancements, tracerDownscale } from './image-processing.js';
 import {
   applyOutlines, buildMixPalette, cleanOutlineCorners, detectEdges, kuwahara, majorityDownscale,
-  makePaletteMatcher, medianCut, pruneShortOutlines, removeStrayPixels, splitInterlaced,
+  makePaletteMatcher, medianCut, pruneShortOutlines, removeStrayPixels, splitBlend, splitInterlaced,
 } from './pixelart.js';
 import { resetSelection } from '../selection.js';
 
@@ -93,8 +93,8 @@ tracerWrap.addEventListener('drop', e => {
 
 /** Palette as [r,g,b] list, or null for unrestricted full colour (photo style only). */
 function tracerBuildPalette(workPixels) {
-  // IFLI shows the average of two frames: trace against all 136 mixed colours
-  if (TR.target === 'ifli' && TR.style === 'pixel') return ifliMixPalette();
+  // Interlaced modes show the average of two frames: trace against all 136 mixed colours
+  if (MODES[TR.target]?.frames && TR.style === 'pixel') return mixPalette();
   if (TR.target) return C64_PALETTE_RGB;
   if (TR.colorMode === 'palette') return TR.palette.map(hex => { const { r, g, b } = hexToRgba(hex); return [r, g, b]; });
   if (TR.colorMode === 'auto' || TR.style === 'pixel') return medianCut(workPixels, TR.colorMode === 'auto' ? TR.autoColors : 32);
@@ -107,8 +107,8 @@ let _tracerPreviewTimer = null;
 
 export function tracerLivePreview() {
   clearTimeout(_tracerPreviewTimer);
-  // the IFLI split and the NUFLI encoder take a moment: wait a little longer
-  const slow = TR.target === 'ifli' || TR.target === 'nufli';
+  // the interlace split and the NUFLI encoder take a moment: wait a little longer
+  const slow = !!MODES[TR.target]?.frames || TR.target === 'nufli';
   _tracerPreviewTimer = setTimeout(_tracerRunPreview, slow ? 250 : 80);
 }
 
@@ -130,8 +130,8 @@ const oversample = (w, h) => Math.max(2, Math.min(8, Math.floor(1280 / Math.max(
  */
 function traceImage() {
   const mode = MODES[TR.target];
-  // IFLI is traced at hires width and split into two frames afterwards
-  const w = mode?.id === 'ifli' ? 320 : TR.dstW, h = TR.dstH;
+  // IFLI is traced at hires width and split into two shifted frames afterwards
+  const w = mode?.frameShift ? mode.width * mode.aspect : TR.dstW, h = TR.dstH;
   const rgba = TR.style === 'pixel' ? tracePixelArt(w, h) : tracePhoto(w, h);
   if (!mode) return { rgba, w, h, display: rgba, displayW: w, displayH: h };
   return { w, h, ...convertToMode(mode, rgba, w, h) };
@@ -152,8 +152,8 @@ function tracePixelArt(w, h) {
   work = kuwahara(work, ww, wh, Math.round((TR.smoothing / 100) * k * 0.75));
 
   const pal = tracerBuildPalette(work);
-  // optional checkerboard mixes (not for IFLI, which mixes through its two frames)
-  const entries = TR.patternMix && TR.target !== 'ifli'
+  // optional checkerboard mixes (not for interlaced modes, which mix through their two frames)
+  const entries = TR.patternMix && !MODES[TR.target]?.frames
     ? buildMixPalette(pal)
     : pal.map((rgb, i) => ({ rgb, a: i, b: i }));
   const matcher = makePaletteMatcher(entries.map(e => e.rgb), TR.huePriority / 100);
@@ -190,17 +190,17 @@ function tracePixelArt(w, h) {
   return out;
 }
 
-let _ifliMix = null;
-function ifliMixPalette() {
-  if (!_ifliMix) {
+let _mix = null;
+function mixPalette() {
+  if (!_mix) {
     const seen = new Map();
     for (const a of C64_PALETTE_RGB) for (const b of C64_PALETTE_RGB) {
       const m = [(a[0] + b[0]) >> 1, (a[1] + b[1]) >> 1, (a[2] + b[2]) >> 1];
       seen.set(m.join(','), m);
     }
-    _ifliMix = [...seen.values()];
+    _mix = [...seen.values()];
   }
-  return _ifliMix;
+  return _mix;
 }
 
 /** Most frequent palette index (background candidate). */
@@ -228,15 +228,22 @@ function convertToMode(mode, rgba, w, h) {
     const idx = joinPages(pages.map(p => decodeNufli(p.mem)), w, h, mode.height);
     return { mode, bgIdx, indices: toBg(idx), data: { pages }, ...displayOf(idx, w, h) };
   }
+  // super hires: one set of sprite colours for the whole picture
+  const params = input => (mode.spriteColors ? mode.chooseSprites(input, bgIdx) : undefined);
+  const data = sprites => (sprites ? { sprites } : null);
   if (mode.frames) {
-    const frames = splitInterlaced(rgba, w, h, C64_PALETTE_RGB).map(toBg);
-    const decoded = enforcePages(mode, frames, bgIdx, h);
-    return { mode, bgIdx, indices: decoded, ...displayOf(blendFrames(decoded, bgIdx, h), w, h, true) };
+    const split = mode.frameShift ? splitInterlaced : splitBlend;
+    const frames = split(rgba, w, h, C64_PALETTE_RGB).map(toBg);
+    const sprites = params(frames);
+    const decoded = enforcePages(mode, frames, bgIdx, h, sprites);
+    const dw = mode.width * mode.aspect;
+    return { mode, bgIdx, indices: decoded, data: data(sprites), ...displayOf(blendFrames(decoded, bgIdx, h, mode), dw, h, true) };
   }
   // pictures taller than one screen: the rules are applied page by page
-  const decoded = enforcePages(mode, toBg(solid), bgIdx, h);
+  const input = toBg(solid), sprites = params(input);
+  const decoded = enforcePages(mode, input, bgIdx, h, sprites);
   const shown = decoded.map(c => (c === BG ? bgIdx : c));
-  return { mode, bgIdx, indices: decoded, ...displayOf(shown, w, h, false, mode.aspect) };
+  return { mode, bgIdx, indices: decoded, data: data(sprites), ...displayOf(shown, w, h, false, mode.aspect) };
 }
 
 /**
@@ -267,14 +274,15 @@ function displayOf(idx, w, h, isRgb = false, aspect = 1) {
   return { display: out, displayW: dw, displayH: h };
 }
 
-/** IFLI frames → blended 320-wide RGBA (frame 2 one hires pixel to the right). */
-function blendFrames([f1, f2], bgIdx, h) {
-  const out = new Uint8ClampedArray(320 * h * 4);
+/** Interlace frames → blended RGBA at hires width (IFLI: frame 2 one hires pixel to the right). */
+function blendFrames([f1, f2], bgIdx, h, mode) {
+  const W = mode.width, A = mode.aspect, S2 = mode.frameShift, OW = W * A;
+  const out = new Uint8ClampedArray(OW * h * 4);
   const col = c => C64_PALETTE_RGB[c === BG ? bgIdx : c];
-  for (let y = 0; y < h; y++) for (let x = 0; x < 320; x++) {
-    const a = col(f1[y * 160 + (x >> 1)]);
-    const b = x > 0 ? col(f2[y * 160 + ((x - 1) >> 1)]) : C64_PALETTE_RGB[bgIdx];
-    const o = (y * 320 + x) * 4;
+  for (let y = 0; y < h; y++) for (let x = 0; x < OW; x++) {
+    const a = col(f1[y * W + Math.floor(x / A)]);
+    const b = x >= S2 ? col(f2[y * W + Math.floor((x - S2) / A)]) : C64_PALETTE_RGB[bgIdx];
+    const o = (y * OW + x) * 4;
     out[o] = (a[0] + b[0]) >> 1; out[o + 1] = (a[1] + b[1]) >> 1; out[o + 2] = (a[2] + b[2]) >> 1; out[o + 3] = 255;
   }
   return out;

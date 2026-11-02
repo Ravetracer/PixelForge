@@ -30,6 +30,10 @@
           <button type="button" class="c64-picker-btn"></button>
           <div class="c64-picker-dropdown hidden"></div>
         </div>
+        <div id="c64-sprite-colors" class="c64-sprite-colors hidden">
+          <label class="tb-label">Sprites</label>
+          <span id="c64-sprite-pickers" class="c64-sprite-pickers"></span>
+        </div>
         <button id="btn-export-koala" class="tb-btn accent" title="Export as C64 Koala (.koa)">Koala</button>
       </div>
 
@@ -424,12 +428,15 @@
           <label>Mode</label>
           <select id="new-c64-mode" class="modal-input">
             <option value="">Normal (any size, any colour)</option>
-            <option value="multicolor">C64 Multicolor bitmap — 160×200</option>
-            <option value="hires">C64 Hires bitmap — 320×200</option>
-            <option value="fli">C64 FLI (multicolor) — 160×200, height adjustable</option>
-            <option value="afli">C64 AFLI (hires FLI) — 320×200, height adjustable</option>
-            <option value="ifli">C64 IFLI (interlaced FLI) — 2 × 160×200</option>
-            <option value="nufli">C64 NUFLI — 320×200 (load a .nuf to be able to save)</option>
+            <option value="multicolor">C64 Multicolor bitmap — 160 wide</option>
+            <option value="hires">C64 Hires bitmap — 320 wide</option>
+            <option value="fli">C64 FLI (multicolor) — 160 wide</option>
+            <option value="afli">C64 AFLI (hires FLI) — 320 wide</option>
+            <option value="ifli">C64 IFLI (interlaced FLI) — 2 × 160 wide</option>
+            <option value="nufli">C64 NUFLI — 320 wide</option>
+            <option value="shi">C64 SHI (super hires interlace) — 2 × 96 wide</option>
+            <option value="shx">C64 SHF-XL (super hires FLI) — 144 wide</option>
+            <option value="shif">C64 SHIF (super hires interlace FLI) — 2 × 96 wide</option>
           </select>
         </div>
         <div class="modal-field hidden" id="modal-c64-bg-field">
@@ -489,6 +496,9 @@
               <option value="afli">C64 AFLI — 320 wide</option>
               <option value="ifli">C64 IFLI — 2 × 160 wide</option>
               <option value="nufli">C64 NUFLI — 320 wide</option>
+              <option value="shi">C64 SHI — 2 × 96 wide</option>
+              <option value="shx">C64 SHF-XL — 144 wide</option>
+              <option value="shif">C64 SHIF — 2 × 96 wide</option>
             </select>
           </div>
           <div class="tracer-field hidden" id="tracer-c64-height-field" title="Height in steps of the mode (usually 8 lines). Taller than one screen is saved as several standard files (one per page).">

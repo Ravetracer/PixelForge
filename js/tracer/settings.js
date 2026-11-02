@@ -37,7 +37,7 @@ export function tracerSetTarget(id) {
   }
   $('tracer-target').value = TR.target;
   // checkerboard mixes suit the small C64 palette; off by default for normal images
-  TR.patternMix = !!mode && mode.id !== 'ifli' && mode.id !== 'hires';
+  TR.patternMix = !!mode && !mode.frames && mode.id !== 'hires';
   $('tracer-pattern-mix').checked = TR.patternMix;
   $('tracer-size-field').classList.toggle('hidden', !!mode);
   $('tracer-c64-height-field').classList.toggle('hidden', !mode);

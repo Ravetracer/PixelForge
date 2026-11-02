@@ -12,7 +12,7 @@ Runs entirely in the browser — plain HTML, CSS and JavaScript (ES modules), no
 - Layers with opacity, undo/redo, reference image overlay, live preview window
 - Palettes, including Lospec palette search
 - Image tracer: converts images into pixel art (edge-preserving smoothing, outlines, clean colour areas) or dithered graphics, for normal images and every C64 mode
-- Preview window with CRT emulation and IFLI interlace flicker
+- Preview window with CRT emulation and interlace flicker
 
 ### C64 graphics modes
 
@@ -25,9 +25,14 @@ Each mode enforces the colour limits of the real hardware while painting.
 | FLI | FLI Graph / Blackmail (also packed), FLI Designer | FLI Graph `.bml` |
 | AFLI | AFLI Editor | `.afl` |
 | IFLI | Gunpaint, Funpaint II, Pixel Perfect (also packed) | Gunpaint `.gun` |
-| NUFLI | NUFLI Editor `.nuf`, packed `.nup` | `.nuf` (pictures loaded from a `.nuf`/`.nup` file) |
+| NUFLI | NUFLI Editor `.nuf`, packed `.nup` | `.nuf` |
+| SHI (super hires interlace) | Super Hires Interlace Editor `.shi` | `.shi` |
+| SHF-XL (super hires FLI) | SHF-XL Edit `.shx` | `.shx` |
+| SHIF (super hires interlace FLI) | Crest SHIF-Editor `.shif` | `.shif` |
 
-FLI and AFLI pictures can also be taller than one screen (steps of 8 lines); they are saved as a ZIP of standard 200-line files.
+Every mode keeps its width but accepts any height in its line steps (usually whole character rows).
+Pictures taller than one screen are saved as a ZIP with one standard file per page.
+The global sprite colours of the super hires modes are picked automatically when tracing and can be changed in the toolbar.
 
 D64 disk images open in a C64-style directory browser that highlights the pictures that can be loaded.
 

@@ -6,7 +6,7 @@ import { initPixels } from '../pixels.js';
 import { render } from '../render.js';
 import { setPrimaryColor, setSecondaryColor } from '../color-controls.js';
 import { renderPalette } from '../palette.js';
-import { exportC64 } from './c64-document.js';
+import { exportC64, setSpriteColor } from './c64-document.js';
 import { MODES, heightStep, snapHeight } from './modes.js';
 import { formatForMode } from './formats.js';
 
@@ -29,6 +29,7 @@ export function updateC64UI() {
     $('c64-bg-label').classList.toggle('hidden', !!mode.stateful);
     $('c64-bg-picker').classList.toggle('hidden', !!mode.stateful);
     $('btn-export-koala').disabled = !format;
+    updateSpritePickers();
 
     // Lock palette to Colodore 16 colours
     S.palette = [...COLODORE_HEX];
@@ -81,6 +82,34 @@ export function updateC64UI() {
     $('btn-layer-merge').disabled = false;
     $('layer-opacity-row').classList.remove('hidden');
   }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  Super hires sprite colour registers
+// ══════════════════════════════════════════════════════════════
+
+let _spritePickerMode = null;
+
+/** One C64 colour picker per sprite colour register of the current mode. */
+export function updateSpritePickers() {
+  const mode = S.c64Mode ? MODES[S.c64Format] : null;
+  const labels = mode?.spriteColors ?? [];
+  if (_spritePickerMode !== (mode?.id ?? null)) {
+    _spritePickerMode = mode?.id ?? null;
+    const box = $('c64-sprite-pickers');
+    box.innerHTML = '';
+    labels.forEach((label, i) => {
+      const picker = document.createElement('div');
+      picker.className = 'c64-palette-picker';
+      picker.id = `c64-sprite-picker-${i}`;
+      picker.title = `${label} colour (changing it recolours that sprite layer)`;
+      picker.innerHTML = '<button type="button" class="c64-picker-btn"></button><div class="c64-picker-dropdown hidden"></div>';
+      box.appendChild(picker);
+      initC64Picker(picker.id, null, hex => setSpriteColor(i, hex));
+    });
+  }
+  $('c64-sprite-colors').classList.toggle('hidden', !labels.length);
+  labels.forEach((_, i) => setC64PickerColor(`c64-sprite-picker-${i}`, COLODORE_HEX[S.c64Data?.sprites?.[i] ?? 0]));
 }
 
 // ══════════════════════════════════════════════════════════════

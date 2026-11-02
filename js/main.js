@@ -12,7 +12,7 @@ import { updateRefUI } from './reference.js';
 import { renderLayerPanel } from './layer-panel.js';
 import { setC64PickerColor, updateC64UI } from './c64/c64-ui.js';
 import { TR } from './tracer/tracer-state.js';
-import { tracerApplyPreset, tracerRenderPalette } from './tracer/settings.js';
+import { tracerApplyPreset, tracerRenderPalette, tracerSetTarget } from './tracer/settings.js';
 import './color.js';
 import './pixels.js';
 import './draw-algorithms.js';
@@ -62,8 +62,9 @@ function init() {
   });
 
   // Tracer: apply default preset (160×200 = C64)
-  $('tracer-dst-preset').value = '160x200';
-  tracerApplyPreset('160x200');
+  $('tracer-dst-preset').value = '64x64';
+  tracerApplyPreset('64x64');
+  tracerSetTarget('multicolor');
   setC64PickerColor('tracer-c64-bg-picker', TR.c64BgColor);
   TR.palette = [...S.palette];
   tracerRenderPalette();

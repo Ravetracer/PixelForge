@@ -1,5 +1,6 @@
 import { $ } from '../dom.js';
 import { initC64Picker } from '../c64/c64-ui.js';
+import { MODES } from '../c64/modes.js';
 import { showToast } from '../toast.js';
 import { TR } from './tracer-state.js';
 import { tracerLivePreview } from './tracer.js';
@@ -17,14 +18,41 @@ export function tracerApplyPreset(val) {
   TR.dstW = w; TR.dstH = h;
   $('tracer-dst-w').value = w;
   $('tracer-dst-h').value = h;
-  // Auto-enable C64 mode for 160×200
-  const isC64 = (w === 160 && h === 200);
-  $('tracer-c64-group').classList.toggle('hidden', !isC64);
-  $('tracer-c64-mode').checked = isC64;
-  TR.c64Mode = isC64;
   if (TR.srcImage) { tracerUpdateCropFromDst(); tracerRender(); tracerLivePreview(); }
 }
 
+/** Target: normal image or a C64 mode (fixed size, C64 palette, mode colour rules). */
+export function tracerSetTarget(id) {
+  const mode = MODES[id];
+  TR.target = mode ? id : '';
+  if (mode) {
+    TR.dstW = mode.width; TR.dstH = mode.height; TR.aspect = mode.aspect;
+  } else {
+    TR.aspect = 1;
+    TR.dstW = Math.max(1, Math.min(2048, parseInt($('tracer-dst-w').value) || 64));
+    TR.dstH = Math.max(1, Math.min(2048, parseInt($('tracer-dst-h').value) || 64));
+  }
+  $('tracer-target').value = TR.target;
+  // checkerboard mixes suit the small C64 palette; off by default for normal images
+  TR.patternMix = !!mode && mode.id !== 'ifli' && mode.id !== 'hires';
+  $('tracer-pattern-mix').checked = TR.patternMix;
+  $('tracer-size-field').classList.toggle('hidden', !!mode);
+  $('tracer-custom-size').classList.toggle('hidden', !!mode || $('tracer-dst-preset').value !== 'custom');
+  $('tracer-color-field').classList.toggle('hidden', !!mode);
+  $('tracer-c64-group').classList.toggle('hidden', !mode || mode.id === 'nufli');
+  updateColorFields();
+  if (TR.srcImage) { tracerUpdateCropFromDst(); tracerRender(); tracerLivePreview(); }
+}
+
+function updateColorFields() {
+  const normal = !TR.target;
+  $('tracer-palette-section').classList.toggle('hidden', !normal || TR.colorMode !== 'palette');
+  $('tracer-auto-colors-field').classList.toggle('hidden', !normal || TR.colorMode !== 'auto');
+  $('tracer-pixel-options').classList.toggle('hidden', TR.style !== 'pixel');
+  $('tracer-dither-field').classList.toggle('hidden', TR.style !== 'photo');
+}
+
+$('tracer-target').addEventListener('change', e => tracerSetTarget(e.target.value));
 $('tracer-dst-preset').addEventListener('change', e => tracerApplyPreset(e.target.value));
 
 $('tracer-dst-w').addEventListener('change', () => {
@@ -36,13 +64,21 @@ $('tracer-dst-h').addEventListener('change', () => {
   if (TR.srcImage) { tracerUpdateCropFromDst(); tracerRender(); tracerLivePreview(); }
 });
 
-$('tracer-c64-mode').addEventListener('change', e => {
-  TR.c64Mode = e.target.checked;
-  $('tracer-c64-bg-field').style.display = TR.c64Mode ? '' : 'none';
-  tracerUpdateCropFromDst();
-  tracerRender();
+$('tracer-style').addEventListener('change', e => { TR.style = e.target.value; updateColorFields(); tracerLivePreview(); });
+$('tracer-cleanup').addEventListener('change', e => { TR.cleanup = e.target.checked; tracerLivePreview(); });
+$('tracer-pattern-mix').addEventListener('change', e => { TR.patternMix = e.target.checked; tracerLivePreview(); });
+$('tracer-bg-auto').addEventListener('change', e => {
+  TR.bgAuto = e.target.checked;
+  $('tracer-c64-bg-field').classList.toggle('hidden', TR.bgAuto);
   tracerLivePreview();
 });
+for (const [id, key] of [['tracer-smoothing', 'smoothing'], ['tracer-outline', 'outline'], ['tracer-auto-colors', 'autoColors'], ['tracer-hue', 'huePriority']]) {
+  $(id).addEventListener('input', e => {
+    TR[key] = parseInt(e.target.value, 10);
+    $(id + '-val').textContent = TR[key];
+    tracerLivePreview();
+  });
+}
 
 $('tracer-dithering').addEventListener('change', e => {
   TR.dithering = e.target.value;
@@ -50,7 +86,7 @@ $('tracer-dithering').addEventListener('change', e => {
 });
 $('tracer-color-mode').addEventListener('change', e => {
   TR.colorMode = e.target.value;
-  $('tracer-palette-section').classList.toggle('hidden', TR.colorMode !== 'palette');
+  updateColorFields();
   tracerLivePreview();
 });
 

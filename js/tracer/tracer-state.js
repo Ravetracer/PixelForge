@@ -16,8 +16,17 @@ export const TR = {
   cropX: 0, cropY: 0, cropW: 0, cropH: 0,
   // destination
   dstW: 160, dstH: 200,
-  c64Mode: true,
+  target: 'multicolor',   // '' = normal image, otherwise a C64 mode id
+  aspect: 2,              // displayed width of one target pixel
   c64BgColor: '#000000',
+  bgAuto: true,
+  style: 'pixel',         // 'pixel' (clean edges, outlines) or 'photo' (dithering)
+  smoothing: 50,          // edge-preserving smoothing strength 0..100
+  outline: 40,            // outline strength 0..100 (0 = off)
+  cleanup: true,
+  patternMix: true,       // checkerboard mixes for in-between tones
+  huePriority: 60,        // colour matching: 0 = brightness first, 100 = hue first
+  autoColors: 16,
   dithering: 'floyd-steinberg',
   colorMode: 'full',
   palette: [...DEFAULT_PALETTE],

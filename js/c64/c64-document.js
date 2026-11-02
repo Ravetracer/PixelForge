@@ -188,6 +188,8 @@ function withBg(idx, bgIdx) {
 }
 
 function fillNufliBackground(mem, bgIdx) {
+  // bug-area sprite colours = background, so the FLI-bug strip blends in
+  for (const addr of [0x3ff0, 0x3ff1, 0x3ff6, 0x3ff7]) mem[addr - 0x2000] = bgIdx;
   const target = new Uint8Array(320 * 200).fill(bgIdx);
   encodeNufliRegion(mem, target, new Float32Array(target.length).fill(1), FULL_RECT);
 }

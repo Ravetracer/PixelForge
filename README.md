@@ -11,7 +11,8 @@ Runs entirely in the browser — plain HTML, CSS and JavaScript (ES modules), no
 - Selections (rectangle, lasso, magic wand), move, copy/paste via the system clipboard, flip and rotate
 - Layers with opacity, undo/redo, reference image overlay, live preview window
 - Palettes, including Lospec palette search
-- Image tracer: converts high-resolution images into pixel graphics with palette reduction and dithering
+- Image tracer: converts images into pixel art (edge-preserving smoothing, outlines, clean colour areas) or dithered graphics, for normal images and every C64 mode
+- Preview window with CRT emulation and IFLI interlace flicker
 
 ### C64 graphics modes
 

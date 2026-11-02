@@ -55,7 +55,7 @@ export function tracerUpdateCropFromDst() {
   if (!TR.srcImage) return;
   const iw = TR.srcImage.naturalWidth, ih = TR.srcImage.naturalHeight;
   // C64 pixels are 2× wide visually, so use visual (display) aspect ratio for cropping
-  const dstAR = (TR.c64Mode ? TR.dstW * 2 : TR.dstW) / TR.dstH;
+  const dstAR = (TR.dstW * TR.aspect) / TR.dstH;
   const srcAR = iw / ih;
   let cw, ch;
   if (dstAR > srcAR) { cw = iw; ch = iw / dstAR; }
@@ -172,7 +172,7 @@ export function tracerRender() {
     tracerCtx.strokeRect(hx - hs/2, hy - hs/2, hs, hs);
   });
   // Dimension label — for C64 show visual (display) size
-  const dimLabel = TR.c64Mode ? `${TR.dstW*2}×${TR.dstH} (C64)` : `${TR.dstW}×${TR.dstH}`;
+  const dimLabel = TR.target ? `${TR.dstW * TR.aspect}×${TR.dstH} (C64)` : `${TR.dstW}×${TR.dstH}`;
   tracerCtx.fillStyle = 'rgba(0,0,0,.7)';
   tracerCtx.fillRect(ctl.x, cbr.y, 126, 18);
   tracerCtx.fillStyle = '#fff';
@@ -185,7 +185,7 @@ export function tracerRender() {
 
 function tracerResizeCropTo(cx, cy) {
   const ip  = canvasToImg(cx, cy);
-  const AR  = (TR.c64Mode ? TR.dstW * 2 : TR.dstW) / TR.dstH;
+  const AR  = (TR.dstW * TR.aspect) / TR.dstH;
   const ax  = TR.resizeAnchorImgX, ay = TR.resizeAnchorImgY;
   const iw  = TR.srcImage.naturalWidth, ih = TR.srcImage.naturalHeight;
   const h   = TR.resizeHandle;

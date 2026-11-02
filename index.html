@@ -480,6 +480,18 @@
 
           <div class="tracer-section-label">Destination</div>
           <div class="tracer-field">
+            <label>Target</label>
+            <select id="tracer-target" class="tracer-select">
+              <option value="">Normal image (any size)</option>
+              <option value="multicolor" selected>C64 Multicolor — 160×200</option>
+              <option value="hires">C64 Hires — 320×200</option>
+              <option value="fli">C64 FLI — 160×200</option>
+              <option value="afli">C64 AFLI — 320×200</option>
+              <option value="ifli">C64 IFLI — 2 × 160×200</option>
+              <option value="nufli">C64 NUFLI — 320×200 (not savable)</option>
+            </select>
+          </div>
+          <div class="tracer-field" id="tracer-size-field">
             <label>Size preset</label>
             <select id="tracer-dst-preset" class="tracer-select">
               <option value="16x16">16 × 16</option>
@@ -503,8 +515,43 @@
             </div>
           </div>
 
-          <div class="tracer-section-label" style="margin-top:10px">Quality</div>
+          <div class="tracer-section-label" style="margin-top:10px">Style</div>
           <div class="tracer-field">
+            <select id="tracer-style" class="tracer-select" title="Pixel art: flat colours, clean edges and outlines. Photo: averaged colours with dithering.">
+              <option value="pixel" selected>Pixel art (clean edges, outlines)</option>
+              <option value="photo">Photo (dithering)</option>
+            </select>
+          </div>
+          <div id="tracer-pixel-options">
+            <div class="tracer-enh-slider" title="Edge-preserving smoothing: flattens textures and noise before pixelling">
+              <label>Smoothing</label>
+              <input type="range" id="tracer-smoothing" min="0" max="100" value="50">
+              <span id="tracer-smoothing-val">50</span>
+            </div>
+            <div class="tracer-enh-slider" title="Dark 1-px outlines along detected edges (0 = off)">
+              <label>Outlines</label>
+              <input type="range" id="tracer-outline" min="0" max="100" value="40">
+              <span id="tracer-outline-val">40</span>
+            </div>
+            <div class="tracer-enh-slider" title="Colour matching: low = match brightness, high = keep hue and saturation (closer to how pixel artists choose colours)">
+              <label>Hue priority</label>
+              <input type="range" id="tracer-hue" min="0" max="100" value="60">
+              <span id="tracer-hue-val">60</span>
+            </div>
+            <div class="tracer-enh-invert" title="In-between tones as clean 2-colour checkerboards, like hand-made C64 art">
+              <label class="tracer-check-label">
+                <input type="checkbox" id="tracer-pattern-mix" checked>
+                Checkerboard mixes
+              </label>
+            </div>
+            <div class="tracer-enh-invert">
+              <label class="tracer-check-label">
+                <input type="checkbox" id="tracer-cleanup" checked>
+                Remove stray pixels
+              </label>
+            </div>
+          </div>
+          <div class="tracer-field" id="tracer-dither-field">
             <label>Dithering</label>
             <select id="tracer-dithering" class="tracer-select">
               <optgroup label="Error diffusion">
@@ -525,12 +572,18 @@
               <option value="none">None</option>
             </select>
           </div>
-          <div class="tracer-field">
+          <div class="tracer-field" id="tracer-color-field">
             <label>Color mode</label>
             <select id="tracer-color-mode" class="tracer-select">
               <option value="full">Full color</option>
+              <option value="auto">Auto palette…</option>
               <option value="palette">Match palette…</option>
             </select>
+          </div>
+          <div class="tracer-enh-slider hidden" id="tracer-auto-colors-field" title="Number of colours of the generated palette">
+            <label>Colours</label>
+            <input type="range" id="tracer-auto-colors" min="2" max="64" value="16">
+            <span id="tracer-auto-colors-val">16</span>
           </div>
 
           <!-- Palette + Lospec (shown when color mode = palette) -->
@@ -549,15 +602,15 @@
             <div id="tracer-lospec-results" class="lospec-results" style="max-height:160px"></div>
           </div>
 
-          <div id="tracer-c64-group" class="hidden">
-            <div class="tracer-section-label" style="margin-top:10px">C64 Mode</div>
-            <div class="tracer-field tracer-check-field">
+          <div id="tracer-c64-group">
+            <div class="tracer-section-label" style="margin-top:10px">C64 background</div>
+            <div class="tracer-enh-invert">
               <label class="tracer-check-label">
-                <input type="checkbox" id="tracer-c64-mode" checked>
-                Apply C64 palette &amp; tile constraints
+                <input type="checkbox" id="tracer-bg-auto" checked>
+                Choose automatically
               </label>
             </div>
-            <div class="tracer-field" id="tracer-c64-bg-field">
+            <div class="tracer-field hidden" id="tracer-c64-bg-field">
               <label>Background color</label>
               <div class="c64-palette-picker" id="tracer-c64-bg-picker">
                 <button type="button" class="c64-picker-btn"></button>
@@ -819,7 +872,7 @@
           </table>
 
           <h2 id="help-sec-tracer">Image Tracer</h2>
-          <p>Open with the <strong>Trace</strong> button (<kbd>T</kbd>). The tracer converts a photograph or artwork into indexed pixel art by downscaling and applying dithering.</p>
+          <p>Open with the <strong>Trace</strong> button (<kbd>T</kbd>). The tracer converts a photograph or artwork into pixel art — for a normal image of any size or directly into one of the C64 graphics modes.</p>
 
           <h3>Loading a Source</h3>
           <p>Click <strong>Load Source…</strong> to open a JPEG or PNG image. The source appears in the left preview pane.</p>
@@ -829,8 +882,23 @@
             <li><strong>Crop box</strong> — the dashed rectangle defines which region of the source gets traced. Drag the box interior to reposition it; drag a corner handle to resize it. Only the area inside the box is used as input.</li>
           </ul>
 
-          <h3>Destination Size</h3>
-          <p>Choose a preset (16×16 up to 256×256, or 160×200 for C64) or enter a custom width × height. Selecting 160×200 automatically enables the C64 Mode group.</p>
+          <h3>Target</h3>
+          <p><strong>Normal image</strong> lets you pick a size preset or a custom size. The <strong>C64</strong> targets (Multicolor, Hires, FLI, AFLI, IFLI, NUFLI) use the mode's resolution and palette, and the result is converted with that mode's colour rules, so it opens as an editable C64 picture. The crop box follows the mode's displayed aspect ratio. For modes with a background colour, the tracer picks the most frequent colour unless you choose one. Traced NUFLI pictures can be edited but not saved (see C64 Graphics Modes).</p>
+
+          <h3>Style: Pixel art</h3>
+          <p>The default style aims for results that look pixelled by hand, so only little touch-up is needed:</p>
+          <ul>
+            <li><strong>Smoothing</strong> — an edge-preserving filter flattens texture and noise in the source while keeping edges sharp.</li>
+            <li>Each target pixel takes the colour that <em>most</em> of its source area matches, instead of an average — flat areas, no muddy in-between colours at edges.</li>
+            <li><strong>Outlines</strong> — strong, connected edges in the source get dark 1-pixel outlines; soft gradients and short texture fragments are ignored. L-shaped corners are removed so diagonals stay one pixel wide. 0 turns outlines off.</li>
+            <li><strong>Hue priority</strong> — how colours are matched to the palette: low values match brightness, high values keep hue and saturation, which is usually closer to an artist's choice with small palettes.</li>
+            <li><strong>Checkerboard mixes</strong> — in-between tones become clean 2-colour checkerboards, as in hand-made C64 art (on by default for C64 targets except Hires).</li>
+            <li><strong>Remove stray pixels</strong> — isolated single pixels are merged into their surroundings.</li>
+          </ul>
+          <p>For IFLI the tracer works at 320 pixels width with all 136 colour mixes and splits the result into two frames whose blend matches the picture.</p>
+
+          <h3>Style: Photo</h3>
+          <p>Averages the source and applies one of the dithering methods below — the classic conversion, better suited for photos with soft gradients.</p>
 
           <h3>Dithering</h3>
           <p>Dithering distributes the error between a desired colour and the nearest available palette colour to neighbouring pixels, creating the <em>illusion</em> of intermediate tones. The examples below show a black-to-white gradient dithered with each method (black/white palette).</p>
@@ -843,17 +911,11 @@
           <p>A pre-computed threshold matrix is tiled across the image. Each pixel's channel values are nudged by the corresponding matrix entry before quantizing. Results have a regular, mechanical dot pattern — the classic retro halftone look.</p>
           <div class="help-dither-grid" id="help-dither-ord"><!-- rendered by JS --></div>
 
-          <h3>Color Mode</h3>
+          <h3>Color Mode (normal images)</h3>
           <ul>
-            <li><strong>Full color</strong> — traces using all RGB colours; each pixel is snapped to its nearest representable value in memory. No palette restriction is applied.</li>
-            <li><strong>Match palette</strong> — restricts output to a specific loaded palette. The palette section appears below; load one via a Lospec slug or search, or use the current editor palette.</li>
-          </ul>
-
-          <h3>C64 Mode (160×200 only)</h3>
-          <p>When the destination size is 160×200, a <em>C64 Mode</em> group appears:</p>
-          <ul>
-            <li><strong>Apply C64 palette &amp; tile constraints</strong> — after downscaling and dithering, snaps all colours to Colodore and enforces the 3-foreground-per-tile rule by replacing out-of-quota colours with the nearest allowed one. Enable this when tracing for Koala export.</li>
-            <li><strong>Background color</strong> — the global C64 background used during the tile constraint pass. Set this to the most common background shade for best results.</li>
+            <li><strong>Full color</strong> — Photo style keeps all RGB colours; Pixel art style generates a 32-colour palette from the source.</li>
+            <li><strong>Auto palette</strong> — generates a palette with the chosen number of colours from the source.</li>
+            <li><strong>Match palette</strong> — restricts output to a loaded palette (Lospec slug or search, or the current editor palette).</li>
           </ul>
 
           <h3>Image Enhancement</h3>
@@ -870,7 +932,7 @@
           </table>
 
           <h3>Result Preview &amp; Applying</h3>
-          <p>The <strong>Result preview</strong> canvas at the bottom right updates automatically whenever any setting changes. Click <strong>Trace to Canvas</strong> to send the result to the main editor. In C64 mode a new C64 canvas is created automatically; in normal mode the result replaces the current active layer's content.</p>
+          <p>The <strong>Result preview</strong> canvas at the bottom right updates automatically whenever any setting changes. Click <strong>Trace to Canvas</strong> to open the result in the editor — as a normal image, or as a picture in the chosen C64 mode.</p>
 
           <h2 id="help-sec-shortcuts">Keyboard Shortcuts</h2>
           <table>

@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixelForge — Pixel Art Editor</title>
+<link rel="stylesheet" href="style.css?v=2026-11-02-b373592">
+</head>
+<body>
+<div id="app">
+<header id="toolbar">
+<div class="tb-group brand">
+<span class="brand-icon">⬛</span>
+<span class="brand-name">PixelForge</span>
+</div>
+<div class="tb-group">
+<button id="btn-new"  class="tb-btn"        title="New image (Ctrl+N)">New</button>
+<button id="btn-load"  class="tb-btn"        title="Load image or Koala file (Ctrl+O)">Load</button>
+<button id="btn-trace" class="tb-btn"        title="Trace photo to pixel art (T)">Trace</button>
+<button id="btn-save"  class="tb-btn accent" title="Save PNG (Ctrl+S)">Save PNG</button>
+<input type="file" id="file-input"  hidden>
+</div>
+<div class="tb-group hidden" id="c64-toolbar-group">
+<label class="tb-label" id="c64-bg-label">C64 BG</label>
+<div class="c64-palette-picker" id="c64-bg-picker" title="C64 global background color">
+<button type="button" class="c64-picker-btn"></button>
+<div class="c64-picker-dropdown hidden"></div>
+</div>
+<div id="c64-sprite-colors" class="c64-sprite-colors hidden">
+<label class="tb-label">Sprites</label>
+<span id="c64-sprite-pickers" class="c64-sprite-pickers"></span>
+</div>
+<button id="btn-export-koala" class="tb-btn accent" title="Export as C64 Koala (.koa)">Koala</button>
+</div>
+<div class="tb-group">
+<label class="tb-label">Size</label>
+<select id="size-select" class="tb-select">
+<option value="16x16">16 × 16</option>
+<option value="32x32" selected>32 × 32</option>
+<option value="48x48">48 × 48</option>
+<option value="64x64">64 × 64</option>
+<option value="96x96">96 × 96</option>
+<option value="128x128">128 × 128</option>
+<option value="256x256">256 × 256</option>
+<option value="512x512">512 × 512</option>
+<option value="768x768">768 × 768</option>
+<option value="custom">Custom…</option>
+</select>
+</div>
+<div class="tb-group">
+<label class="tb-label">Zoom</label>
+<button id="btn-zoom-out" class="tb-btn icon" title="Zoom out (−)">−</button>
+<span   id="zoom-display" class="tb-info">10×</span>
+<button id="btn-zoom-in"  class="tb-btn icon" title="Zoom in (+)">+</button>
+<button id="btn-zoom-fit" class="tb-btn"      title="Fit to view">Fit</button>
+</div>
+<div class="tb-group">
+<button id="btn-grid"    class="tb-btn toggle active" title="Toggle grid (G)">Grid</button>
+<button id="btn-preview" class="tb-btn toggle active" title="Toggle preview (P)">Preview</button>
+<button id="btn-tile"    class="tb-btn toggle"        title="Tile mode — 3×3 repeat preview, strokes wrap at the edges (Shift+T)">Tile</button>
+</div>
+<div class="tb-group">
+<button id="btn-undo" class="tb-btn icon" title="Undo (Ctrl+Z)">↩</button>
+<button id="btn-redo" class="tb-btn icon" title="Redo (Ctrl+Y)">↪</button>
+</div>
+<div class="tb-group tb-group-help">
+<button id="btn-help" class="tb-btn" title="Help / Documentation">?</button>
+</div>
+</header>
+<div id="workspace">
+<aside id="tools-panel">
+<div class="tool-section-label">Draw</div>
+<div class="tool-grid">
+<button class="tool-btn active" data-tool="pencil"    title="Pencil (B)">
+<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+<span>Pencil</span>
+</button>
+<button class="tool-btn" data-tool="eraser"    title="Eraser (E)">
+<svg viewBox="0 0 24 24"><path d="M15.14 3c-.51 0-1.02.2-1.41.59L2.59 14.73a2 2 0 000 2.83L5.03 20H13l8-8.03V9.03c0-.53-.21-1.04-.59-1.41L16.55 3.6A2 2 0 0015.14 3zm-3 15H6l-2-2 9.26-9.26 4 4L12.14 18z"/></svg>
+<span>Eraser</span>
+</button>
+<button class="tool-btn" data-tool="fill"      title="Fill (F)">
+<svg viewBox="0 0 24 24"><path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.49 1.49 0 000 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z"/><path d="M0 20h24v4H0z" opacity=".3"/></svg>
+<span>Fill</span>
+</button>
+<button class="tool-btn" data-tool="eyedropper" title="Eyedropper (I)">
+<svg viewBox="0 0 24 24"><path d="M20.71 5.63l-2.34-2.34a1 1 0 00-1.41 0l-3.12 3.12-1.41-1.43-1.42 1.42 1.41 1.41-6.6 6.6A2 2 0 005 16v3h3a2 2 0 001.42-.59l6.6-6.6 1.41 1.41 1.42-1.42-1.43-1.41 3.12-3.12a1 1 0 00.17-1.04z"/></svg>
+<span>Pick</span>
+</button>
+<button class="tool-btn" data-tool="dither"  title="Dither brush (D) — checkerboard of primary and secondary colour">
+<svg viewBox="0 0 24 24"><path d="M3 3h4v4H3zm8 0h4v4h-4zm-4 4h4v4H7zm8 0h4v4h-4zM3 11h4v4H3zm8 0h4v4h-4zm-4 4h4v4H7zm8 0h4v4h-4zM3 19h4v2H3zm8 0h4v2h-4zM19 3h2v4h-2zm0 8h2v4h-2z"/></svg>
+<span>Dither</span>
+</button>
+<button class="tool-btn" data-tool="shade"   title="Shading (S) — left: next palette colour, right: previous">
+<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 18V4a8 8 0 010 16z"/></svg>
+<span>Shade</span>
+</button>
+<button class="tool-btn" data-tool="replace" title="Colour replace (K) — replaces the clicked colour on the whole layer">
+<svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg>
+<span>Replace</span>
+</button>
+</div>
+<div class="tool-section-label" style="margin-top:12px">Shapes</div>
+<div class="tool-grid">
+<button class="tool-btn" data-tool="line"        title="Line (L)">
+<svg viewBox="0 0 24 24"><line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+<span>Line</span>
+</button>
+<button class="tool-btn" data-tool="rect"        title="Rectangle (R)">
+<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+<span>Rect</span>
+</button>
+<button class="tool-btn" data-tool="rect-fill"   title="Filled rect (Shift+R)">
+<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1"/></svg>
+<span>Fill Rect</span>
+</button>
+<button class="tool-btn" data-tool="circle"      title="Circle (C)">
+<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+<span>Circle</span>
+</button>
+<button class="tool-btn" data-tool="circle-fill" title="Filled circle (Shift+C)">
+<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>
+<span>Fill Circle</span>
+</button>
+</div>
+<div class="tool-section-label" style="margin-top:12px">Select</div>
+<div class="tool-grid">
+<button class="tool-btn" data-tool="select-rect"  title="Rectangle select (M) — Shift adds, Alt/Ctrl subtracts">
+<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/></svg>
+<span>Select</span>
+</button>
+<button class="tool-btn" data-tool="select-lasso" title="Lasso select (Q) — Shift adds, Alt/Ctrl subtracts">
+<svg viewBox="0 0 24 24"><ellipse cx="13" cy="9" rx="8" ry="5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/><path d="M7 13c-2 2-1 4 1 5s2 3 0 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+<span>Lasso</span>
+</button>
+<button class="tool-btn" data-tool="select-wand"  title="Magic wand (W) — selects same-coloured pixels">
+<svg viewBox="0 0 24 24"><path d="M3 21L14 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><path d="M17 2l1 3 3 1-3 1-1 3-1-3-3-1 3-1zM8 3l.6 1.4L10 5l-1.4.6L8 7l-.6-1.4L6 5l1.4-.6zM20 12l.6 1.4 1.4.6-1.4.6L20 16l-.6-1.4L18 14l1.4-.6z"/></svg>
+<span>Wand</span>
+</button>
+<button class="tool-btn" data-tool="move"         title="Move selection or layer (V) — Alt/Ctrl-drag duplicates, arrows nudge">
+<svg viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>
+<span>Move</span>
+</button>
+</div>
+<div class="transform-row">
+<button class="transform-btn" data-transform="flipH"  title="Flip horizontal (Shift+H)">
+<svg viewBox="0 0 24 24"><path d="M11 2h2v20h-2z"/><path d="M9 6L2 18h7z"/><path d="M15 6v12h7z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+</button>
+<button class="transform-btn" data-transform="flipV"  title="Flip vertical (Shift+V)">
+<svg viewBox="0 0 24 24"><path d="M2 11h20v2H2z"/><path d="M6 9L18 2v7z"/><path d="M6 15h12L6 22z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+</button>
+<button class="transform-btn" data-transform="rot180" title="Rotate 180°">180°</button>
+<button class="transform-btn" data-transform="rotCCW" title="Rotate 90° counter-clockwise (&lt;)">
+<svg viewBox="0 0 24 24"><path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/></svg>
+</button>
+<button class="transform-btn" data-transform="rotCW"  title="Rotate 90° clockwise (&gt;)">
+<svg viewBox="0 0 24 24"><path d="M15.55 5.55L11 1v3.07C7.06 4.56 4 7.92 4 12s3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45zM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02zM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42l1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48z"/></svg>
+</button>
+</div>
+<div class="tool-section-label" style="margin-top:12px">Colours</div>
+<div class="color-swap-area">
+<div id="color-secondary" class="color-swatch secondary" title="Secondary colour (right-click canvas)"></div>
+<div id="color-primary"   class="color-swatch primary"   title="Primary colour (left-click canvas)"></div>
+<button id="btn-swap" class="swap-btn" title="Swap colours (X)">⇄</button>
+</div>
+<div class="color-picker-row">
+<label>Primary</label>
+<input type="color" id="primary-color" value="#000000">
+<div class="c64-palette-picker hidden" id="c64-primary-picker">
+<button type="button" class="c64-picker-btn"></button>
+<div class="c64-picker-dropdown hidden"></div>
+</div>
+</div>
+<div class="color-picker-row">
+<label>Secondary</label>
+<input type="color" id="secondary-color" value="#ffffff">
+<div class="c64-palette-picker hidden" id="c64-secondary-picker">
+<button type="button" class="c64-picker-btn"></button>
+<div class="c64-picker-dropdown hidden"></div>
+</div>
+</div>
+<div class="hex-row">
+<label>Hex</label>
+<input type="text" id="primary-hex" class="hex-field" value="#000000" maxlength="7">
+</div>
+<div class="tool-section-label" style="margin-top:12px">Brush</div>
+<div class="brush-size-row" title="Brush size for pencil, eraser, dither and shade (1–8)">
+<input type="range" id="brush-size" min="1" max="8" value="1">
+<span id="brush-size-val">1</span>
+</div>
+<div class="seg-row">
+<button class="seg-btn active" data-brush-shape="square" title="Square brush">■</button>
+<button class="seg-btn"        data-brush-shape="round"  title="Round brush">●</button>
+</div>
+<div class="seg-row">
+<button class="seg-btn" id="btn-mirror-x" title="Mirror horizontally (Shift+X)">⇋ X</button>
+<button class="seg-btn" id="btn-mirror-y" title="Mirror vertically (Shift+Y)">⇵ Y</button>
+</div>
+<div class="tool-section-label" style="margin-top:12px">Options</div>
+<label class="tool-option-label">
+<input type="checkbox" id="chk-pixel-perfect">
+Pixel Perfect
+</label>
+<label class="tool-option-label" title="Magic wand selects only connected pixels">
+<input type="checkbox" id="chk-wand-contiguous" checked>
+Wand contiguous
+</label>
+</aside>
+<main id="canvas-area">
+<div id="canvas-container">
+<div id="canvas-wrapper">
+<canvas id="tile-canvas"></canvas>
+<canvas id="bg-canvas"></canvas>
+<canvas id="main-canvas"></canvas>
+<canvas id="ref-canvas"></canvas>
+<canvas id="preview-canvas"></canvas>
+<canvas id="sel-canvas"></canvas>
+</div>
+</div>
+<div id="mini-preview-box">
+<div class="mini-preview-header" id="mini-preview-header">
+<span class="mini-preview-label">Preview</span>
+<div class="mini-preview-controls">
+<select id="preview-scale-select" class="preview-scale-select" title="Preview scale">
+<option value="2" selected>2×</option>
+<option value="4">4×</option>
+<option value="6">6×</option>
+<option value="8">8×</option>
+<option value="custom">…</option>
+</select>
+<input type="number" id="preview-scale-custom" class="preview-scale-custom hidden" min="1" max="64" value="4" title="Custom scale">
+<button type="button" id="btn-preview-crt" class="preview-toggle" title="CRT emulation: scanlines, phosphor glow, slight blur">CRT</button>
+<button type="button" id="btn-preview-flicker" class="preview-toggle" title="Interlace flicker: show both IFLI frames alternately at 50 Hz, like a real C64" disabled>Flicker</button>
+<button type="button" id="btn-hide-preview" class="preview-close-btn" title="Hide preview (P)">✕</button>
+</div>
+</div>
+<div id="mini-preview-view" class="mini-preview-view">
+<canvas id="mini-preview"></canvas>
+</div>
+</div>
+<div id="status-bar">
+<span id="status-pos">— , —</span>
+<span id="status-size">32 × 32 px</span>
+<span id="status-sel"></span>
+<span id="status-zoom">10×</span>
+<span id="status-color">#000000</span>
+<span id="status-tool">Pencil</span>
+<span id="status-layer">Layer 1</span>
+</div>
+</main>
+<aside id="palette-panel">
+<div class="panel-section" id="ref-section">
+<div class="panel-header">
+<span>Reference Image</span>
+<div class="btn-row">
+<button id="btn-ref-vis"   class="small-btn active" title="Toggle visibility">👁</button>
+<button id="btn-load-ref"  class="small-btn"        title="Load reference image">…</button>
+<button id="btn-clear-ref" class="small-btn"        title="Remove reference">✕</button>
+</div>
+</div>
+<div id="ref-info" class="ref-info hidden">
+<div class="ref-name-row">
+<span id="ref-filename">—</span>
+<span id="ref-dims" class="ref-dims"></span>
+</div>
+<div class="slider-row">
+<label>Opacity</label>
+<input type="range" id="ref-opacity" min="0" max="100" value="50">
+<span id="ref-opacity-val">50%</span>
+</div>
+<div class="slider-row">
+<label>Scale</label>
+<input type="range" id="ref-scale" min="10" max="400" value="100" step="5">
+<span id="ref-scale-val">100%</span>
+</div>
+<div class="slider-row">
+<label>X</label>
+<input type="range" id="ref-offx" min="-100" max="100" value="0">
+<span id="ref-offx-val">0%</span>
+</div>
+<div class="slider-row">
+<label>Y</label>
+<input type="range" id="ref-offy" min="-100" max="100" value="0">
+<span id="ref-offy-val">0%</span>
+</div>
+<button id="btn-reset-ref-transform" class="tb-btn fw ref-reset-btn">Reset position &amp; scale</button>
+</div>
+<div id="ref-empty" class="ref-empty">No reference loaded</div>
+<input type="file" id="ref-file-input" accept="image/*" hidden>
+</div>
+<div class="panel-section" id="layer-section">
+<div class="panel-header">
+<span>Layers</span>
+<div class="btn-row">
+<button id="btn-layer-add"   class="small-btn" title="Add layer (Shift+N)">+</button>
+<button id="btn-layer-dup"   class="small-btn" title="Duplicate active layer">⧉</button>
+<button id="btn-layer-merge" class="small-btn" title="Merge visible layers">⊕</button>
+</div>
+</div>
+<div id="layer-list"></div>
+<div class="slider-row" id="layer-opacity-row" style="padding-top:6px;border-top:1px solid var(--border);margin-top:4px">
+<label>Opacity</label>
+<input type="range" id="layer-opacity" min="0" max="100" value="100">
+<span id="layer-opacity-val">100%</span>
+</div>
+</div>
+<div class="panel-section">
+<div class="panel-header">
+<span>Palette</span>
+<div class="btn-row">
+<button id="btn-add-to-palette" class="small-btn" title="Add primary colour">+</button>
+<button id="btn-clear-palette"  class="small-btn" title="Reset to default">↺</button>
+</div>
+</div>
+<div id="palette-colors" class="color-grid"></div>
+<div id="palette-lock-note" class="palette-lock-note hidden">🔒 Locked to C64 Colodore</div>
+</div>
+<div class="panel-section" id="lospec-section">
+<div class="panel-header"><span>Lospec Palettes</span></div>
+<div class="lospec-form">
+<input  type="text" id="lospec-slug"  class="lospec-input" placeholder="Slug (e.g. db16)">
+<button id="btn-load-lospec" class="tb-btn accent fw">Load by slug</button>
+</div>
+<div class="lospec-tip">Find slugs at <strong>lospec.com/palette-list</strong></div>
+<div class="lospec-form" style="margin-top:8px">
+<input  type="text" id="lospec-search" class="lospec-input" placeholder="Search palettes…">
+<button id="btn-search-lospec" class="tb-btn fw">Search</button>
+</div>
+<div id="lospec-results" class="lospec-results"></div>
+</div>
+<div class="panel-section" id="image-colors-section">
+<div class="panel-header">
+<span>Image Colours</span>
+<button id="btn-extract" class="small-btn" title="Extract from all visible layers">↻</button>
+</div>
+<div id="image-colors" class="color-grid"></div>
+</div>
+<div class="panel-section" id="adjust-section">
+<div class="panel-header">
+<span>Adjustments</span>
+<div class="btn-row">
+<button id="btn-adj-reset" class="small-btn" title="Restore to base">↺</button>
+<button id="btn-adj-apply" class="small-btn adj-apply-btn" title="Apply to canvas">✓</button>
+</div>
+</div>
+<div class="tracer-enh-slider">
+<label>Brightness</label>
+<input type="range" id="adj-brightness" min="-100" max="100" value="0">
+<span id="adj-brightness-val">+0</span>
+</div>
+<div class="tracer-enh-slider">
+<label>Contrast</label>
+<input type="range" id="adj-contrast" min="-100" max="100" value="0">
+<span id="adj-contrast-val">+0</span>
+</div>
+<div class="tracer-enh-slider">
+<label>Saturation</label>
+<input type="range" id="adj-saturation" min="-100" max="100" value="0">
+<span id="adj-saturation-val">+0</span>
+</div>
+<div class="tracer-enh-slider">
+<label>Vibrance</label>
+<input type="range" id="adj-vibrance" min="-100" max="100" value="0">
+<span id="adj-vibrance-val">+0</span>
+</div>
+</div>
+</aside>
+</div>
+</div>
+<div id="modal-overlay" class="hidden">
+<div id="modal">
+<div class="modal-header">New Image</div>
+<div class="modal-body">
+<div class="modal-field">
+<label>Width (px)</label>
+<input type="number" id="new-width"  class="modal-input" value="32" min="1" max="2048">
+</div>
+<div class="modal-field">
+<label>Height (px)</label>
+<input type="number" id="new-height" class="modal-input" value="32" min="1" max="2048">
+</div>
+<div class="modal-field" id="modal-bg-field">
+<label>Background</label>
+<select id="new-bg" class="modal-input">
+<option value="transparent">Transparent</option>
+<option value="white">White</option>
+<option value="black">Black</option>
+</select>
+</div>
+<div class="modal-field">
+<label>Mode</label>
+<select id="new-c64-mode" class="modal-input">
+<option value="">Normal (any size, any colour)</option>
+<option value="multicolor">C64 Multicolor bitmap — 160 wide</option>
+<option value="hires">C64 Hires bitmap — 320 wide</option>
+<option value="fli">C64 FLI (multicolor) — 160 wide</option>
+<option value="afli">C64 AFLI (hires FLI) — 320 wide</option>
+<option value="ifli">C64 IFLI (interlaced FLI) — 2 × 160 wide</option>
+<option value="nufli">C64 NUFLI — 320 wide</option>
+<option value="shi">C64 SHI (super hires interlace) — 2 × 96 wide</option>
+<option value="shx">C64 SHF-XL (super hires FLI) — 144 wide</option>
+<option value="shif">C64 SHIF (super hires interlace FLI) — 2 × 96 wide</option>
+</select>
+</div>
+<div class="modal-field hidden" id="modal-c64-bg-field">
+<label>C64 Background Color</label>
+<div class="c64-palette-picker" id="new-c64-bg-picker">
+<button type="button" class="c64-picker-btn"></button>
+<div class="c64-picker-dropdown hidden"></div>
+</div>
+<input type="hidden" id="new-c64-bg" value="#000000">
+</div>
+</div>
+<div class="modal-footer">
+<button id="modal-cancel"  class="tb-btn">Cancel</button>
+<button id="modal-confirm" class="tb-btn accent">Create</button>
+</div>
+</div>
+</div>
+<div id="tracer-overlay" class="hidden">
+<div id="tracer-modal">
+<div class="tracer-header">
+<span class="tracer-title">Trace Image to Pixel Art</span>
+<button id="tracer-close" class="tracer-close-btn" title="Close">✕</button>
+</div>
+<div class="tracer-body">
+<div class="tracer-left">
+<div class="tracer-preview-toolbar">
+<button id="tracer-load-src" class="tb-btn">Load Source…</button>
+<span id="tracer-src-info" class="tracer-src-info">No image loaded</span>
+<div style="flex:1"></div>
+<button id="tracer-zoom-out" class="tb-btn icon" title="Zoom out">−</button>
+<span id="tracer-zoom-label" class="tb-info">—</span>
+<button id="tracer-zoom-in"  class="tb-btn icon" title="Zoom in">+</button>
+<button id="tracer-zoom-fit" class="tb-btn"      title="Fit to view">Fit</button>
+<input type="file" id="tracer-file-input" accept=".jpg,.jpeg,.png" hidden>
+</div>
+<div id="tracer-canvas-wrap">
+<canvas id="tracer-canvas"></canvas>
+</div>
+<div class="tracer-hint">Drag to pan · Scroll to zoom · Drag crop box to reposition</div>
+</div>
+<div class="tracer-left tracer-result-pane">
+<div class="tracer-preview-toolbar">
+<span class="tracer-pane-title">Result</span>
+<span id="tracer-result-info" class="tracer-src-info">—</span>
+<div style="flex:1"></div>
+<button id="tracer-result-zoom-out" class="tb-btn icon" title="Zoom out">−</button>
+<span id="tracer-result-zoom" class="tb-info">—</span>
+<button id="tracer-result-zoom-in"  class="tb-btn icon" title="Zoom in">+</button>
+<button id="tracer-result-1to1" class="tb-btn" title="Actual pixels (1:1)">1:1</button>
+<button id="tracer-result-fit"  class="tb-btn" title="Fit to view">Fit</button>
+</div>
+<div id="tracer-result-wrap">
+<canvas id="tracer-result-canvas"></canvas>
+</div>
+<div class="tracer-hint">Drag to pan · Scroll to zoom · Grid from 6× per pixel</div>
+</div>
+<div class="tracer-right">
+<div class="tracer-section-label">Destination</div>
+<div class="tracer-field">
+<label>Target</label>
+<select id="tracer-target" class="tracer-select">
+<option value="">Normal image (any size)</option>
+<option value="multicolor" selected>C64 Multicolor — 160 wide</option>
+<option value="hires">C64 Hires — 320 wide</option>
+<option value="fli">C64 FLI — 160 wide</option>
+<option value="afli">C64 AFLI — 320 wide</option>
+<option value="ifli">C64 IFLI — 2 × 160 wide</option>
+<option value="nufli">C64 NUFLI — 320 wide</option>
+<option value="shi">C64 SHI — 2 × 96 wide</option>
+<option value="shx">C64 SHF-XL — 144 wide</option>
+<option value="shif">C64 SHIF — 2 × 96 wide</option>
+</select>
+</div>
+<div class="tracer-field hidden" id="tracer-c64-height-field" title="Height in steps of the mode (usually 8 lines). Taller than one screen is saved as several standard files (one per page).">
+<label>Height (lines)</label>
+<input type="number" id="tracer-c64-height" class="tracer-number" value="200" min="8" max="2000" step="8">
+</div>
+<div class="tracer-field" id="tracer-size-field">
+<label>Size preset</label>
+<select id="tracer-dst-preset" class="tracer-select">
+<option value="16x16">16 × 16</option>
+<option value="32x32">32 × 32</option>
+<option value="48x48">48 × 48</option>
+<option value="64x64">64 × 64</option>
+<option value="96x96">96 × 96</option>
+<option value="128x128">128 × 128</option>
+<option value="160x200">160 × 200 (C64)</option>
+<option value="256x256">256 × 256</option>
+<option value="320x200">320 × 200</option>
+<option value="custom">Custom…</option>
+</select>
+</div>
+<div id="tracer-custom-size" class="tracer-field tracer-custom-size hidden">
+<label>Width × Height</label>
+<div class="tracer-wh-row">
+<input type="number" id="tracer-dst-w" class="tracer-number" value="160" min="1" max="2048">
+<span>×</span>
+<input type="number" id="tracer-dst-h" class="tracer-number" value="200" min="1" max="2048">
+</div>
+</div>
+<div class="tracer-section-label" style="margin-top:10px">Style</div>
+<div class="tracer-field">
+<select id="tracer-style" class="tracer-select" title="Pixel art: flat colours, clean edges and outlines. Photo: averaged colours with dithering.">
+<option value="pixel" selected>Pixel art (clean edges, outlines)</option>
+<option value="photo">Photo (dithering)</option>
+</select>
+</div>
+<div id="tracer-pixel-options">
+<div class="tracer-enh-slider" title="Edge-preserving smoothing: flattens textures and noise before pixelling">
+<label>Smoothing</label>
+<input type="range" id="tracer-smoothing" min="0" max="100" value="50">
+<span id="tracer-smoothing-val">50</span>
+</div>
+<div class="tracer-enh-slider" title="Dark 1-px outlines along detected edges (0 = off)">
+<label>Outlines</label>
+<input type="range" id="tracer-outline" min="0" max="100" value="40">
+<span id="tracer-outline-val">40</span>
+</div>
+<div class="tracer-enh-slider" title="Colour matching: low = match brightness, high = keep hue and saturation (closer to how pixel artists choose colours)">
+<label>Hue priority</label>
+<input type="range" id="tracer-hue" min="0" max="100" value="60">
+<span id="tracer-hue-val">60</span>
+</div>
+<div class="tracer-enh-invert" title="In-between tones as clean 2-colour checkerboards, like hand-made C64 art">
+<label class="tracer-check-label">
+<input type="checkbox" id="tracer-pattern-mix" checked>
+Checkerboard mixes
+</label>
+</div>
+<div class="tracer-enh-invert">
+<label class="tracer-check-label">
+<input type="checkbox" id="tracer-cleanup" checked>
+Remove stray pixels
+</label>
+</div>
+</div>
+<div class="tracer-field" id="tracer-dither-field">
+<label>Dithering</label>
+<select id="tracer-dithering" class="tracer-select">
+<optgroup label="Error diffusion">
+<option value="floyd-steinberg" selected>Floyd-Steinberg</option>
+<option value="atkinson">Atkinson</option>
+<option value="stucki">Stucki</option>
+<option value="jarvis">Jarvis-Judice-Ninke</option>
+<option value="sierra">Sierra</option>
+<option value="sierra2">Sierra (2-row)</option>
+</optgroup>
+<optgroup label="Ordered">
+<option value="bayer2">Bayer 2×2</option>
+<option value="bayer4">Bayer 4×4</option>
+<option value="bayer8">Bayer 8×8</option>
+<option value="bayer8a">Bayer 8×8 (adaptive)</option>
+<option value="checkerboard">Checkerboard</option>
+</optgroup>
+<option value="none">None</option>
+</select>
+</div>
+<div class="tracer-field" id="tracer-color-field">
+<label>Color mode</label>
+<select id="tracer-color-mode" class="tracer-select">
+<option value="full">Full color</option>
+<option value="auto">Auto palette…</option>
+<option value="palette">Match palette…</option>
+</select>
+</div>
+<div class="tracer-enh-slider hidden" id="tracer-auto-colors-field" title="Number of colours of the generated palette">
+<label>Colours</label>
+<input type="range" id="tracer-auto-colors" min="2" max="64" value="16">
+<span id="tracer-auto-colors-val">16</span>
+</div>
+<div id="tracer-palette-section" class="hidden">
+<div class="tracer-section-label" style="margin-top:6px">Palette</div>
+<div id="tracer-palette-swatches" class="tracer-palette-swatches"></div>
+<div class="tracer-lospec-row">
+<input type="text" id="tracer-lospec-slug" class="lospec-input" placeholder="Slug (e.g. db16)">
+<button id="tracer-btn-load-lospec" class="tb-btn">Load</button>
+</div>
+<div class="tracer-lospec-row" style="margin-top:4px">
+<input type="text" id="tracer-lospec-search" class="lospec-input" placeholder="Search palettes…">
+<button id="tracer-btn-search-lospec" class="tb-btn">Search</button>
+</div>
+<div class="lospec-tip">slugs at <strong>lospec.com/palette-list</strong></div>
+<div id="tracer-lospec-results" class="lospec-results" style="max-height:160px"></div>
+</div>
+<div id="tracer-c64-group">
+<div class="tracer-section-label" style="margin-top:10px">C64 background</div>
+<div class="tracer-enh-invert">
+<label class="tracer-check-label">
+<input type="checkbox" id="tracer-bg-auto" checked>
+Choose automatically
+</label>
+</div>
+<div class="tracer-field hidden" id="tracer-c64-bg-field">
+<label>Background color</label>
+<div class="c64-palette-picker" id="tracer-c64-bg-picker">
+<button type="button" class="c64-picker-btn"></button>
+<div class="c64-picker-dropdown hidden"></div>
+</div>
+<input type="hidden" id="tracer-c64-bg-val" value="#000000">
+</div>
+</div>
+<div class="tracer-section-label" style="margin-top:10px">
+Enhancement
+<button id="tracer-enh-reset" class="tracer-enh-reset" title="Reset all">↺</button>
+</div>
+<div class="tracer-enh-slider">
+<label>Brightness</label>
+<input type="range" id="tracer-brightness" min="-100" max="100" value="0">
+<span id="tracer-brightness-val">+0</span>
+</div>
+<div class="tracer-enh-slider">
+<label>Contrast</label>
+<input type="range" id="tracer-contrast" min="-100" max="100" value="0">
+<span id="tracer-contrast-val">+0</span>
+</div>
+<div class="tracer-enh-slider">
+<label>Saturation</label>
+<input type="range" id="tracer-saturation" min="-100" max="100" value="0">
+<span id="tracer-saturation-val">+0</span>
+</div>
+<div class="tracer-enh-slider">
+<label>Vibrance</label>
+<input type="range" id="tracer-vibrance" min="-100" max="100" value="0">
+<span id="tracer-vibrance-val">+0</span>
+</div>
+<div class="tracer-enh-invert">
+<label class="tracer-check-label">
+<input type="checkbox" id="tracer-invert">
+Invert colors
+</label>
+</div>
+<button id="tracer-execute" class="tb-btn accent fw" style="margin-top:8px">Trace to Canvas</button>
+</div>
+</div>
+</div>
+</div>
+<div id="help-overlay" class="hidden">
+<div id="help-modal">
+<div class="help-header">
+<span class="help-title">PixelForge — Documentation</span>
+<button id="btn-help-close" class="help-close-btn" title="Close (Esc)">✕</button>
+</div>
+<div class="help-body">
+<nav id="help-nav" class="help-nav">
+<a href="#help-sec-tools">Drawing Tools</a>
+<a href="#help-sec-selection">Selection &amp; Transform</a>
+<a href="#help-sec-colours">Colours</a>
+<a href="#help-sec-palette">Palette &amp; Lospec</a>
+<a href="#help-sec-layers">Layers</a>
+<a href="#help-sec-reference">Reference Image</a>
+<a href="#help-sec-canvas">Canvas &amp; View</a>
+<a href="#help-sec-files">File Operations</a>
+<a href="#help-sec-c64">C64 Modes</a>
+<a href="#help-sec-tracer">Image Tracer</a>
+<a href="#help-sec-shortcuts">Keyboard Shortcuts</a>
+</nav>
+<article id="help-content-area" class="help-content">
+<h2 id="help-sec-tools">Drawing Tools</h2>
+<p>Select a tool from the left panel or via keyboard shortcut. <strong>Left-click</strong> on the canvas uses the primary colour; <strong>right-click</strong> uses the secondary colour. Shape tools commit on mouse-up.</p>
+<table>
+<thead><tr><th>Tool</th><th>Shortcut</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>Pencil</td><td><kbd>B</kbd></td><td>Draws individual pixels with the active colour.</td></tr>
+<tr><td>Eraser</td><td><kbd>E</kbd></td><td>Sets pixels to transparent.</td></tr>
+<tr><td>Fill</td><td><kbd>F</kbd></td><td>Flood-fills a contiguous region of the same colour.</td></tr>
+<tr><td>Eyedropper</td><td><kbd>I</kbd></td><td>Picks the colour under the cursor without changing the tool.</td></tr>
+<tr><td>Dither</td><td><kbd>D</kbd></td><td>Paints a checkerboard of primary and secondary colour (right-click swaps them). The pattern is fixed to the image grid, so overlapping strokes line up.</td></tr>
+<tr><td>Shade</td><td><kbd>S</kbd></td><td>Steps each pixel to the next palette swatch (left-click) or the previous one (right-click), once per stroke. Arrange your palette as colour ramps. Colours not in the palette are left unchanged.</td></tr>
+<tr><td>Replace</td><td><kbd>K</kbd></td><td>Replaces every pixel of the clicked colour on the active layer (inside the selection, if any) with the primary colour.</td></tr>
+<tr><td>Line</td><td><kbd>L</kbd></td><td>Draws a straight line between two points. Click and drag.</td></tr>
+<tr><td>Rectangle</td><td><kbd>R</kbd></td><td>Draws a hollow rectangle. Click and drag.</td></tr>
+<tr><td>Filled Rectangle</td><td><kbd>Shift+R</kbd></td><td>Draws a solid rectangle.</td></tr>
+<tr><td>Circle</td><td><kbd>C</kbd></td><td>Draws a hollow circle. Click and drag.</td></tr>
+<tr><td>Filled Circle</td><td><kbd>Shift+C</kbd></td><td>Draws a solid circle.</td></tr>
+</tbody>
+</table>
+<div class="help-note">In <strong>C64 mode</strong> the cursor shows ✕ when drawing would add a fourth foreground colour to a 4×8 tile. The paint action is blocked.</div>
+<h3>Brush, mirror &amp; tile mode</h3>
+<ul>
+<li><strong>Brush size</strong> (1–8, keys <kbd>1</kbd>–<kbd>8</kbd>) and <strong>shape</strong> (square / round) apply to Pencil, Eraser, Dither and Shade. Pixel Perfect only works at size 1.</li>
+<li><strong>Mirror X / Y</strong> (<kbd>Shift+X</kbd> / <kbd>Shift+Y</kbd>) mirrors brush strokes, shapes and fills across the canvas centre. The axes are shown as dashed lines.</li>
+<li><strong>Tile</strong> (<kbd>Shift+T</kbd>) shows the image repeated 3×3 for seamless textures. Brush strokes, shapes and fills wrap around the canvas edges while it is on.</li>
+</ul>
+<h2 id="help-sec-selection">Selection &amp; Transform</h2>
+<p>While a selection is active, all drawing tools only affect the selected pixels.</p>
+<table>
+<thead><tr><th>Tool</th><th>Shortcut</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>Select</td><td><kbd>M</kbd></td><td>Rectangular selection. Click without dragging to deselect.</td></tr>
+<tr><td>Lasso</td><td><kbd>Q</kbd></td><td>Freehand selection; the shape is closed automatically.</td></tr>
+<tr><td>Magic Wand</td><td><kbd>W</kbd></td><td>Selects pixels of exactly the clicked colour on the active layer. Untick <em>Wand contiguous</em> to select that colour everywhere.</td></tr>
+<tr><td>Move</td><td><kbd>V</kbd></td><td>Drags the selected pixels, or the whole layer if nothing is selected. <kbd>Alt</kbd>/<kbd>Ctrl</kbd>-drag duplicates instead of cutting.</td></tr>
+</tbody>
+</table>
+<ul>
+<li>Hold <kbd>Shift</kbd> to add to the selection, <kbd>Alt</kbd> or <kbd>Ctrl</kbd> to subtract from it.</li>
+<li>Moved, pasted or transformed pixels <em>float</em> above the layer until they are applied with <kbd>Enter</kbd>, by choosing another tool, or by deselecting. <kbd>Ctrl+Z</kbd> cancels a floating operation.</li>
+<li>Transparent pixels of floating content do not overwrite the layer.</li>
+<li><strong>Flip / Rotate</strong> buttons below the select tools transform the selection, or the whole active layer if nothing is selected.</li>
+<li><kbd>Ctrl+C</kbd> / <kbd>Ctrl+X</kbd> copy to the system clipboard as PNG; <kbd>Ctrl+V</kbd> pastes images from PixelForge or other applications.</li>
+</ul>
+<div class="help-note">In <strong>C64 mode</strong> pasted colours are snapped to the Colodore palette, and pixels that would exceed 3 colours per 4×8 tile are skipped when floating content is applied.</div>
+<h2 id="help-sec-colours">Colours</h2>
+<p>The overlapping swatches in the left panel show the <strong>primary</strong> (front) and <strong>secondary</strong> (back) colours. Click a swatch or the labelled picker below it to open the colour chooser.</p>
+<ul>
+<li>Left-click on the canvas paints with the <strong>primary</strong> colour.</li>
+<li>Right-click on the canvas paints with the <strong>secondary</strong> colour.</li>
+<li><strong>Swap</strong> (<kbd>X</kbd>) — swaps primary and secondary.</li>
+<li><strong>Hex field</strong> — type a colour directly (<code>#rrggbb</code>).</li>
+</ul>
+<div class="help-note">In <strong>C64 mode</strong> the native colour pickers are replaced by Colodore palette dropdowns and the hex field is disabled. Any colour set by other means is automatically snapped to the nearest Colodore entry.</div>
+<h2 id="help-sec-palette">Palette &amp; Lospec</h2>
+<h3>Colour Palette</h3>
+<p>The <strong>Palette</strong> panel shows your working colour set as swatches.</p>
+<ul>
+<li>Left-click a swatch → set as primary colour.</li>
+<li>Right-click a swatch → set as secondary colour.</li>
+<li><strong>+</strong> — adds the current primary colour to the palette.</li>
+<li><strong>↺</strong> — resets to the built-in 32-colour default palette.</li>
+</ul>
+<h3>Image Colours</h3>
+<p>Click <strong>↻</strong> next to <em>Image Colours</em> to extract every unique colour currently used on visible layers. The result appears as swatches — click any to set it as a colour.</p>
+<h3>Lospec Palettes</h3>
+<p><a href="https://lospec.com/palette-list" target="_blank" rel="noopener">lospec.com/palette-list</a> hosts hundreds of community-made palettes.</p>
+<ul>
+<li><strong>Load by slug</strong> — enter the palette slug (e.g. <code>db16</code>, <code>sweetie16</code>, <code>na16</code>) and click <em>Load by slug</em>. Press Enter to load without clicking.</li>
+<li><strong>Search</strong> — type a name and click <em>Search</em>. Click a result to load it.</li>
+</ul>
+<div class="help-note">In C64 mode the palette is locked to the Colodore 16 colours; palette editing and Lospec import are disabled.</div>
+<h2 id="help-sec-layers">Layers</h2>
+<p>Layers are stacked transparently, composited top-to-bottom. All drawing goes to the <strong>active</strong> (highlighted) layer.</p>
+<table>
+<thead><tr><th>Button</th><th>Shortcut</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>+</td><td><kbd>Shift+N</kbd></td><td>Add a new blank transparent layer above the active one.</td></tr>
+<tr><td>⧉</td><td><kbd>Shift+D</kbd></td><td>Duplicate the active layer.</td></tr>
+<tr><td>⊕</td><td>—</td><td>Merge all visible layers into a single layer.</td></tr>
+<tr><td>👁</td><td>—</td><td>Toggle visibility of the layer.</td></tr>
+<tr><td>🔒 / 🔓</td><td>—</td><td>Lock a layer to prevent drawing on it; unlock to allow drawing again.</td></tr>
+<tr><td>↑ / ↓</td><td><kbd>]</kbd> / <kbd>[</kbd></td><td>Move the layer up or down in the stack.</td></tr>
+<tr><td>✕</td><td>—</td><td>Delete the layer (disabled when only one layer remains).</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Opacity</strong> — the slider at the bottom of the Layers section controls the active layer's transparency (0–100 %).</li>
+<li><strong>Rename</strong> — double-click a layer name to edit it inline; press Enter or click away to confirm.</li>
+</ul>
+<div class="help-warn">In <strong>C64 mode</strong>: adding, deleting, and merging layers are all disabled. The lock toggle is grayed out. The opacity slider is hidden because the Koala format does not support per-layer transparency.</div>
+<h2 id="help-sec-reference">Reference Image</h2>
+<p>A reference image overlays the canvas to guide your drawing. It is never saved into the exported PNG or Koala file.</p>
+<ul>
+<li>Click <strong>…</strong> to load any raster image (PNG, JPG, GIF, …).</li>
+<li>Toggle the overlay with the <strong>👁</strong> button.</li>
+<li><strong>Opacity</strong> — how transparent the reference overlay is (default 50 %).</li>
+<li><strong>Scale</strong> — resize the reference independently of the canvas (10–400 %).</li>
+<li><strong>X / Y</strong> — offset the reference horizontally and vertically as a percentage of the canvas size.</li>
+<li><strong>Reset position &amp; scale</strong> — returns position and scale to their defaults.</li>
+<li>Click <strong>✕</strong> to unload the reference entirely.</li>
+</ul>
+<h2 id="help-sec-canvas">Canvas &amp; View</h2>
+<h3>Zoom</h3>
+<ul>
+<li><strong>− / +</strong> buttons in the toolbar or press <kbd>−</kbd> / <kbd>+</kbd> on the keyboard.</li>
+<li>Scroll wheel on the canvas zooms at the cursor position.</li>
+<li><strong>Fit</strong> — fits the entire canvas into the visible area.</li>
+</ul>
+<h3>Grid</h3>
+<p>Toggle the pixel grid overlay with the <strong>Grid</strong> toolbar button or press <kbd>G</kbd>. The grid is hidden automatically at low zoom levels.</p>
+<h3>Preview Window</h3>
+<p>A floating mini-preview shows the artwork at a selectable scale (2×, 4×, 6×, 8×, or a custom value). Toggle with <strong>Preview</strong> or <kbd>P</kbd>. Drag the preview header to move it around the canvas area. Previews larger than 60&nbsp;% of the canvas area (high scales, tall C64 pictures) scroll inside the window.</p>
+<h3>Status Bar</h3>
+<p>The bar at the bottom of the canvas shows: cursor position, canvas size, current zoom, colour under the cursor, active tool, and active layer name.</p>
+<h2 id="help-sec-files">File Operations</h2>
+<table>
+<thead><tr><th>Action</th><th>Shortcut</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>New image</td><td><kbd>Ctrl+N</kbd></td><td>Opens the New Image dialog. Set width, height, background colour, or enable C64 mode.</td></tr>
+<tr><td>Load</td><td><kbd>Ctrl+O</kbd></td><td>Load PNG, BMP, GIF, JPG, or a Koala <code>.koa</code> file. Loading a <code>.koa</code> switches to C64 mode automatically.</td></tr>
+<tr><td>Save PNG</td><td><kbd>Ctrl+S</kbd></td><td>Exports all visible layers flattened to a single PNG file.</td></tr>
+<tr><td>Koala</td><td>—</td><td>C64 mode only. Exports a standard Koala Painter <code>.koa</code> file for use in emulators or on real hardware.</td></tr>
+<tr><td>Drag &amp; drop</td><td>—</td><td>Drop an image file directly onto the canvas to load it.</td></tr>
+</tbody>
+</table>
+<h2 id="help-sec-c64">C64 Graphics Modes</h2>
+<p>PixelForge can edit pictures in several Commodore 64 graphics modes. Every mode has its own colour limits, which are enforced while you paint: a stroke that would break them is blocked and a message names the rule. All colours come from the 16-colour <strong>Colodore</strong> palette.</p>
+<p>Choose a mode in <strong>New Image</strong> (<kbd>Ctrl+N</kbd>), or load a C64 picture file. The toolbar then shows the <strong>C64 BG</strong> background colour and a <strong>Save</strong> button for the mode's native file format.</p>
+<table>
+<thead><tr><th>Mode</th><th>Size</th><th>Colour limit</th><th>Saved as</th></tr></thead>
+<tbody>
+<tr><td>Multicolor bitmap</td><td>160×200, wide pixels</td><td>Background + 3 colours per 4×8 cell</td><td>Koala <code>.koa</code></td></tr>
+<tr><td>Hires bitmap</td><td>320×200</td><td>2 colours per 8×8 cell (background counts as one)</td><td>Art Studio <code>.art</code></td></tr>
+<tr><td>FLI</td><td>160×200, wide pixels</td><td>Per 4×1 row 2 colours, plus 1 colour shared by the 4×8 cell, plus background</td><td>FLI Graph <code>.bml</code></td></tr>
+<tr><td>AFLI</td><td>320×200</td><td>2 colours per 8×1 row</td><td>AFLI Editor <code>.afl</code></td></tr>
+<tr><td>IFLI</td><td>2 frames of 160×200</td><td>FLI rules per frame; both frames share the 4×8 cell colour</td><td>Gunpaint <code>.gun</code></td></tr>
+<tr><td>NUFLI</td><td>320×200</td><td>Ink + paper per 8×2 block, plus one sprite underlay colour per 48-px column that can change every 2 lines</td><td>NUFLI Editor <code>.nuf</code>*</td></tr>
+</tbody>
+</table>
+<div class="help-note">In the FLI modes (FLI, AFLI, IFLI) the left 3 character columns show the C64's <em>FLI bug</em> and can only hold background. They are hatched in the grid.</div>
+<h3>Tall FLI and AFLI pictures</h3>
+<p>FLI and AFLI pictures can be taller than one screen — useful for portraits shown with a scrolling viewer. Set the height in <strong>New Image</strong> or in the tracer (steps of 8 lines, up to 2000). There is no standard file format for tall pictures, so <strong>Save</strong> splits them into standard 200-line files (<code>image_1.bml</code>, <code>image_2.bml</code>, …) and downloads them as one ZIP; the last part is filled up with background. Each part loads in any FLI/AFLI viewer. Pictures shorter than 200 lines are saved as one padded file.</p>
+<h3>NUFLI</h3>
+<p>NUFLI combines hires FLI with sprites behind the bitmap, and even covers the FLI bug area with sprites. Its colour limits depend on each other across whole columns, so instead of blocking a stroke PixelForge fits it in after you release the mouse: pixels that NUFLI cannot show get the nearest possible colour, and a message tells you how many. Pixels outside the stroke are never changed.</p>
+<p>* A <code>.nuf</code> file contains the NUFLI display program. PixelForge keeps it from the loaded file, so saving works for pictures loaded from <code>.nuf</code> or <code>.nup</code> files. A new NUFLI picture can be edited but not saved.</p>
+<h3>Preview: CRT and flicker</h3>
+<p>The preview window has two display options. <strong>CRT</strong> imitates a monitor: scanlines, phosphor glow and the slight blur of a composite signal. <strong>Flicker</strong> (IFLI only) shows the two frames alternately at 50&nbsp;Hz like a real C64, instead of the steady mix. Both settings are remembered in the browser.</p>
+<h3>IFLI frames</h3>
+<p>IFLI shows two FLI pictures alternately, the second shifted by half a pixel. The eye mixes them, which gives more colours and finer horizontal detail. In PixelForge the frames are the layers <strong>Frame 1</strong> and <strong>Frame 2</strong>; select a layer to paint on that frame. The canvas shows the mixed result; hide one frame layer to see the other on its own.</p>
+<h3>Loading C64 files</h3>
+<p><strong>Load</strong> (or drag and drop) recognises these picture files by load address, size and signature, regardless of the file name:</p>
+<ul>
+<li><strong>Multicolor:</strong> Koala Painter</li>
+<li><strong>Hires:</strong> Art Studio, Interpaint Hires, Hi-Eddi, Doodle (also packed <code>.jj</code>), Image System, plain mono bitmaps</li>
+<li><strong>FLI:</strong> FLI Graph / Blackmail (also packed), FLI Designer</li>
+<li><strong>AFLI:</strong> AFLI Editor</li>
+<li><strong>IFLI:</strong> Gunpaint, Funpaint II, Pixel Perfect (also packed <code>.ppp</code>)</li>
+<li><strong>NUFLI:</strong> NUFLI Editor <code>.nuf</code> and packed <code>.nup</code></li>
+</ul>
+<p>A <strong>D64 disk image</strong> opens a C64-style directory listing. Files PixelForge can load are highlighted, with their format; click one to load it. Self-starting programs (usually packed picture viewers or demos) are shown dimmed and cannot be loaded.</p>
+<h3>Restrictions in C64 modes</h3>
+<table>
+<thead><tr><th>Feature</th><th>Restriction</th></tr></thead>
+<tbody>
+<tr><td>Canvas size</td><td>Fixed by the mode</td></tr>
+<tr><td>Colours</td><td>Colodore 16; colour pickers become palette dropdowns, hex input is disabled</td></tr>
+<tr><td>Palette panel</td><td>Locked to Colodore 16; Lospec and image colours are hidden</td></tr>
+<tr><td>Layers</td><td>Fixed drawing layer(s) plus a locked background layer; no add, delete, merge or opacity</td></tr>
+</tbody>
+</table>
+<h2 id="help-sec-tracer">Image Tracer</h2>
+<p>Open with the <strong>Trace</strong> button (<kbd>T</kbd>). The tracer converts a photograph or artwork into pixel art — for a normal image of any size or directly into one of the C64 graphics modes.</p>
+<h3>Loading a Source</h3>
+<p>Click <strong>Load Source…</strong> to open a JPEG or PNG image. The source appears in the left preview pane.</p>
+<ul>
+<li><strong>Pan</strong> — drag anywhere in the preview canvas.</li>
+<li><strong>Zoom</strong> — scroll wheel, or use the − / + / Fit controls.</li>
+<li><strong>Crop box</strong> — the dashed rectangle defines which region of the source gets traced. Drag the box interior to reposition it; drag a corner handle to resize it. Only the area inside the box is used as input.</li>
+</ul>
+<h3>Target</h3>
+<p><strong>Normal image</strong> lets you pick a size preset or a custom size. The <strong>C64</strong> targets (Multicolor, Hires, FLI, AFLI, IFLI, NUFLI) use the mode's resolution and palette, and the result is converted with that mode's colour rules, so it opens as an editable C64 picture. The crop box follows the mode's displayed aspect ratio. For FLI and AFLI you can set the height (steps of 8 lines) to trace portraits into one tall picture: type it in, or drag the top or bottom edge of the crop box — the height snaps to 8-line steps while the width stays. For modes with a background colour, the tracer picks the most frequent colour unless you choose one. Traced NUFLI pictures can be edited but not saved (see C64 Graphics Modes).</p>
+<h3>Style: Pixel art</h3>
+<p>The default style aims for results that look pixelled by hand, so only little touch-up is needed:</p>
+<ul>
+<li><strong>Smoothing</strong> — an edge-preserving filter flattens texture and noise in the source while keeping edges sharp.</li>
+<li>Each target pixel takes the colour that <em>most</em> of its source area matches, instead of an average — flat areas, no muddy in-between colours at edges.</li>
+<li><strong>Outlines</strong> — strong, connected edges in the source get dark 1-pixel outlines; soft gradients and short texture fragments are ignored. L-shaped corners are removed so diagonals stay one pixel wide. 0 turns outlines off.</li>
+<li><strong>Hue priority</strong> — how colours are matched to the palette: low values match brightness, high values keep hue and saturation, which is usually closer to an artist's choice with small palettes.</li>
+<li><strong>Checkerboard mixes</strong> — in-between tones become clean 2-colour checkerboards, as in hand-made C64 art (on by default for C64 targets except Hires).</li>
+<li><strong>Remove stray pixels</strong> — isolated single pixels are merged into their surroundings.</li>
+</ul>
+<p>For IFLI the tracer works at 320 pixels width with all 136 colour mixes and splits the result into two frames whose blend matches the picture.</p>
+<h3>Style: Photo</h3>
+<p>Averages the source and applies one of the dithering methods below — the classic conversion, better suited for photos with soft gradients.</p>
+<h3>Dithering</h3>
+<p>Dithering distributes the error between a desired colour and the nearest available palette colour to neighbouring pixels, creating the <em>illusion</em> of intermediate tones. The examples below show a black-to-white gradient dithered with each method (black/white palette).</p>
+<h4>Error-diffusion methods</h4>
+<p>These scan left-to-right, top-to-bottom. Each pixel's quantization error is propagated forward to unprocessed neighbours according to a weight matrix. Results look organic and natural.</p>
+<div class="help-dither-grid" id="help-dither-ed"></div>
+<h4>Ordered (Bayer) methods</h4>
+<p>A pre-computed threshold matrix is tiled across the image. Each pixel's channel values are nudged by the corresponding matrix entry before quantizing. Results have a regular, mechanical dot pattern — the classic retro halftone look.</p>
+<div class="help-dither-grid" id="help-dither-ord"></div>
+<h3>Color Mode (normal images)</h3>
+<ul>
+<li><strong>Full color</strong> — Photo style keeps all RGB colours; Pixel art style generates a 32-colour palette from the source.</li>
+<li><strong>Auto palette</strong> — generates a palette with the chosen number of colours from the source.</li>
+<li><strong>Match palette</strong> — restricts output to a loaded palette (Lospec slug or search, or the current editor palette).</li>
+</ul>
+<h3>Image Enhancement</h3>
+<p>These adjustments pre-process the source before dithering. Click <strong>↺</strong> to reset all sliders.</p>
+<table>
+<thead><tr><th>Control</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>Brightness</td><td>Shifts every pixel brighter (+) or darker (−).</td></tr>
+<tr><td>Contrast</td><td>Expands (+) or compresses (−) the tonal range around 128.</td></tr>
+<tr><td>Saturation</td><td>Uniformly boosts or reduces colour intensity.</td></tr>
+<tr><td>Vibrance</td><td>Smart saturation — affects desaturated colours more than already-vivid ones, preserving skin tones and highlights.</td></tr>
+<tr><td>Invert</td><td>Negates all channels (white ↔ black, etc.).</td></tr>
+</tbody>
+</table>
+<h3>Result Preview &amp; Applying</h3>
+<p>The <strong>Result preview</strong> canvas at the bottom right updates automatically whenever any setting changes. Click <strong>Trace to Canvas</strong> to open the result in the editor — as a normal image, or as a picture in the chosen C64 mode.</p>
+<h2 id="help-sec-shortcuts">Keyboard Shortcuts</h2>
+<table>
+<thead><tr><th>Shortcut</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td><kbd>B</kbd></td><td>Pencil tool</td></tr>
+<tr><td><kbd>E</kbd></td><td>Eraser tool</td></tr>
+<tr><td><kbd>F</kbd></td><td>Fill / bucket tool</td></tr>
+<tr><td><kbd>I</kbd></td><td>Eyedropper / colour picker</td></tr>
+<tr><td><kbd>L</kbd></td><td>Line tool</td></tr>
+<tr><td><kbd>R</kbd></td><td>Rectangle (outline)</td></tr>
+<tr><td><kbd>Shift+R</kbd></td><td>Rectangle (filled)</td></tr>
+<tr><td><kbd>C</kbd></td><td>Circle (outline)</td></tr>
+<tr><td><kbd>Shift+C</kbd></td><td>Circle (filled)</td></tr>
+<tr><td><kbd>D</kbd> / <kbd>S</kbd> / <kbd>K</kbd></td><td>Dither / Shade / Colour replace</td></tr>
+<tr><td><kbd>1</kbd> – <kbd>8</kbd></td><td>Brush size</td></tr>
+<tr><td><kbd>Shift+X</kbd> / <kbd>Shift+Y</kbd></td><td>Toggle mirror X / Y</td></tr>
+<tr><td><kbd>Shift+T</kbd></td><td>Toggle tile mode</td></tr>
+<tr><td><kbd>M</kbd> / <kbd>Q</kbd> / <kbd>W</kbd></td><td>Rectangle select / Lasso / Magic wand</td></tr>
+<tr><td><kbd>V</kbd></td><td>Move tool</td></tr>
+<tr><td><kbd>Ctrl+A</kbd> / <kbd>Ctrl+D</kbd></td><td>Select all / Deselect</td></tr>
+<tr><td><kbd>Ctrl+I</kbd></td><td>Invert selection</td></tr>
+<tr><td><kbd>Ctrl+C</kbd> / <kbd>Ctrl+X</kbd> / <kbd>Ctrl+V</kbd></td><td>Copy / Cut / Paste</td></tr>
+<tr><td><kbd>Del</kbd> / <kbd>Backspace</kbd></td><td>Clear selected pixels</td></tr>
+<tr><td><kbd>Arrow keys</kbd></td><td>Nudge selection by 1 px (<kbd>Shift</kbd>: 8 px)</td></tr>
+<tr><td><kbd>Shift+H</kbd> / <kbd>Shift+V</kbd></td><td>Flip horizontal / vertical</td></tr>
+<tr><td><kbd>&lt;</kbd> / <kbd>&gt;</kbd></td><td>Rotate 90° counter-clockwise / clockwise</td></tr>
+<tr><td><kbd>Enter</kbd></td><td>Apply floating pixels</td></tr>
+<tr><td><kbd>X</kbd></td><td>Swap primary ↔ secondary colour</td></tr>
+<tr><td><kbd>G</kbd></td><td>Toggle pixel grid</td></tr>
+<tr><td><kbd>P</kbd></td><td>Toggle preview window</td></tr>
+<tr><td><kbd>T</kbd></td><td>Open Image Tracer</td></tr>
+<tr><td><kbd>+</kbd> or <kbd>=</kbd></td><td>Zoom in</td></tr>
+<tr><td><kbd>−</kbd></td><td>Zoom out</td></tr>
+<tr><td><kbd>[</kbd></td><td>Move active layer down</td></tr>
+<tr><td><kbd>]</kbd></td><td>Move active layer up</td></tr>
+<tr><td><kbd>Shift+N</kbd></td><td>Add new layer</td></tr>
+<tr><td><kbd>Shift+D</kbd></td><td>Duplicate active layer</td></tr>
+<tr><td><kbd>Ctrl+Z</kbd></td><td>Undo</td></tr>
+<tr><td><kbd>Ctrl+Y</kbd> / <kbd>Ctrl+Shift+Z</kbd></td><td>Redo</td></tr>
+<tr><td><kbd>Ctrl+S</kbd></td><td>Save PNG</td></tr>
+<tr><td><kbd>Ctrl+N</kbd></td><td>New image dialog</td></tr>
+<tr><td><kbd>Ctrl+O</kbd></td><td>Load file</td></tr>
+<tr><td><kbd>Esc</kbd></td><td>Deselect / close Tracer / close this Documentation panel</td></tr>
+</tbody>
+</table>
+</article>
+</div>
+</div>
+</div>
+<div id="disk-overlay" class="hidden">
+<div id="disk-modal" role="dialog" aria-labelledby="disk-filename">
+<div class="disk-header">
+<span id="disk-filename"></span>
+<button id="disk-close" class="tb-btn" title="Close (Esc)">✕</button>
+</div>
+<div id="disk-listing"></div>
+<div id="disk-hint"></div>
+</div>
+</div>
+<div id="toast" class="hidden"></div>
+<script src="app.js?v=2026-11-02-b373592"></script>
+</body>
+</html>

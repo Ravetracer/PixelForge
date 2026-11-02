@@ -12,5 +12,6 @@ node_modules/
 # OS
 .DS_Store
 
-# Build output
-dist/
+# Build output: the deployable folder dist/pixelforge/ is versioned, the zips are not
+dist/*
+!dist/pixelforge/

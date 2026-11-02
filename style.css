@@ -1324,3 +1324,20 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
 .disk-picture:hover, .disk-picture:focus-visible { background: var(--c64-lightblue); color: var(--c64-blue); outline: none; }
 .disk-picture:hover .disk-tag, .disk-picture:focus-visible .disk-tag { color: var(--c64-blue); }
 #disk-hint { padding: 6px 12px 10px; font-size: 12px; color: #b2b2b2; }
+
+/* ── Preview window: CRT / flicker toggles ── */
+.preview-toggle {
+  height: 20px;
+  padding: 0 6px;
+  background: var(--surface1);
+  color: var(--subtext);
+  border: 1px solid var(--surface2);
+  border-radius: var(--radius);
+  font: 600 10px/1 inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+.preview-toggle:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+.preview-toggle.active { border-color: var(--accent); color: var(--accent); }
+.preview-toggle:disabled { opacity: .4; cursor: default; }
+#mini-preview.crt { border-radius: 10px; }

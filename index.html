@@ -247,6 +247,8 @@
                 <option value="custom">…</option>
               </select>
               <input type="number" id="preview-scale-custom" class="preview-scale-custom hidden" min="1" max="64" value="4" title="Custom scale">
+              <button type="button" id="btn-preview-crt" class="preview-toggle" title="CRT emulation: scanlines, phosphor glow, slight blur">CRT</button>
+              <button type="button" id="btn-preview-flicker" class="preview-toggle" title="Interlace flicker: show both IFLI frames alternately at 50 Hz, like a real C64" disabled>Flicker</button>
               <button type="button" id="btn-hide-preview" class="preview-close-btn" title="Hide preview (P)">✕</button>
             </div>
           </div>
@@ -786,6 +788,9 @@
           <h3>NUFLI</h3>
           <p>NUFLI combines hires FLI with sprites behind the bitmap, and even covers the FLI bug area with sprites. Its colour limits depend on each other across whole columns, so instead of blocking a stroke PixelForge fits it in after you release the mouse: pixels that NUFLI cannot show get the nearest possible colour, and a message tells you how many. Pixels outside the stroke are never changed.</p>
           <p>* A <code>.nuf</code> file contains the NUFLI display program. PixelForge keeps it from the loaded file, so saving works for pictures loaded from <code>.nuf</code> or <code>.nup</code> files. A new NUFLI picture can be edited but not saved.</p>
+
+          <h3>Preview: CRT and flicker</h3>
+          <p>The preview window has two display options. <strong>CRT</strong> imitates a monitor: scanlines, phosphor glow and the slight blur of a composite signal. <strong>Flicker</strong> (IFLI only) shows the two frames alternately at 50&nbsp;Hz like a real C64, instead of the steady mix. Both settings are remembered in the browser.</p>
 
           <h3>IFLI frames</h3>
           <p>IFLI shows two FLI pictures alternately, the second shifted by half a pixel. The eye mixes them, which gives more colours and finer horizontal detail. In PixelForge the frames are the layers <strong>Frame 1</strong> and <strong>Frame 2</strong>; select a layer to paint on that frame. The canvas shows the mixed result; hide one frame layer to see the other on its own.</p>

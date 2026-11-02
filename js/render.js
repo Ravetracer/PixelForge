@@ -117,14 +117,22 @@ function renderLayers() {
  * Hidden frames drop out of the blend, so each frame can be inspected on its own.
  */
 function renderInterlace() {
+  mainCtx.putImageData(interlaceImage([1, 2]), 0, 0);
+}
+
+/**
+ * Picture of the given IFLI frames at hires width (frame 2 shifted one hires
+ * pixel right). Several frames are averaged; hidden frame layers are skipped.
+ */
+export function interlaceImage(frameNumbers) {
   const W = S.width, H = S.height, OW = W * 2;
   const bgLayer = S.layers.find(l => l.isBgLayer);
   const bg = hexToRgba(S.c64BgColor);
   const bgAlpha = bgLayer?.visible === false ? 0 : 255;
-  const sources = [1, 2]
-    .map(n => S.layers.find(l => l.frame === n))
-    .map((l, f) => (l?.visible ? { px: layerPixelsForDisplay(l), shift: f } : null))
-    .filter(Boolean);
+  const sources = frameNumbers
+    .map(n => ({ layer: S.layers.find(l => l.frame === n), shift: n - 1 }))
+    .filter(({ layer }) => layer?.visible)
+    .map(({ layer, shift }) => ({ px: layerPixelsForDisplay(layer), shift }));
   const out = new ImageData(OW, H);
   const d = out.data;
   for (let y = 0; y < H; y++) {
@@ -142,7 +150,7 @@ function renderInterlace() {
       d[o] = Math.floor(r / n); d[o + 1] = Math.floor(g / n); d[o + 2] = Math.floor(b / n); d[o + 3] = Math.floor(a / n);
     }
   }
-  mainCtx.putImageData(out, 0, 0);
+  return out;
 }
 
 /** Repeat the composited image 3×3 around the canvas (the centre is covered by the real canvases). */

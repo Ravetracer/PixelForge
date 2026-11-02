@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# IDE / local tool state
+.idea/
+.claude/
+.playwright-mcp/
+
+# Third-party C64 example pictures (local test material only)
+*_examples/
+
+# OS
+.DS_Store

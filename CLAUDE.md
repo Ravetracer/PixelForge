@@ -28,6 +28,7 @@ js/ - Application code as native ES modules (no bundler):
 - tracer/ - Image tracer (state, viewport, settings, dithering, image processing; pixelart.js: Kuwahara smoothing, edge detection, majority downscale, outlines, cleanup, LCh palette matching, IFLI frame split)
 
 The app must be served over HTTP (`npm start`); ES modules do not load from `file://`.
+Distribution: `npm run build` (scripts/build.mjs) bundles js/ into dist/pixelforge/app.js with esbuild; never hand-edit dist/.
 Module imports are read-only bindings: mutable state shared across modules lives on `S`.
 
 ## Development Guidelines

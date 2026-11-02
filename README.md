@@ -43,10 +43,17 @@ and open the printed URL.
 ## Deployment
 
 ```sh
+npm install
 npm run build
 ```
 
-creates `dist/pixelforge/` and `dist/pixelforge-<version>.zip` with exactly the files the website needs (`index.html`, `style.css`, `js/`, `LICENSE`). Upload them to any static web host — no server-side runtime is required. The entry script carries the build version as a query string so browsers load the new version after an update.
+creates `dist/pixelforge/` and `dist/pixelforge-<version>.zip` for distribution:
+`index.html`, `style.css` (minified), `app.js` (all modules bundled and minified with esbuild) and `LICENSE`.
+Upload them to any static web host — no server-side runtime is required. The bundle is a classic script,
+so the build also runs when `index.html` is opened directly from disk. Script and stylesheet carry the build
+version as query string, so browsers load the new version after an update.
+
+Development uses the ES modules in `js/` directly (`npm start`).
 
 ## License
 

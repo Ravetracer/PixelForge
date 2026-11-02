@@ -256,7 +256,9 @@
               <button type="button" id="btn-hide-preview" class="preview-close-btn" title="Hide preview (P)">✕</button>
             </div>
           </div>
-          <canvas id="mini-preview"></canvas>
+          <div id="mini-preview-view" class="mini-preview-view">
+            <canvas id="mini-preview"></canvas>
+          </div>
         </div>
         <div id="status-bar">
           <span id="status-pos">— , —</span>
@@ -832,7 +834,7 @@
           <h3>Grid</h3>
           <p>Toggle the pixel grid overlay with the <strong>Grid</strong> toolbar button or press <kbd>G</kbd>. The grid is hidden automatically at low zoom levels.</p>
           <h3>Preview Window</h3>
-          <p>A floating mini-preview shows the artwork at a selectable scale (2×, 4×, 6×, 8×, or a custom value). Toggle with <strong>Preview</strong> or <kbd>P</kbd>. Drag the preview header to move it around the canvas area.</p>
+          <p>A floating mini-preview shows the artwork at a selectable scale (2×, 4×, 6×, 8×, or a custom value). Toggle with <strong>Preview</strong> or <kbd>P</kbd>. Drag the preview header to move it around the canvas area. Previews larger than 60&nbsp;% of the canvas area (high scales, tall C64 pictures) scroll inside the window.</p>
           <h3>Status Bar</h3>
           <p>The bar at the bottom of the canvas shows: cursor position, canvas size, current zoom, colour under the cursor, active tool, and active layer name.</p>
 

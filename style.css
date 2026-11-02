@@ -801,6 +801,10 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
   justify-content: center;
 }
 .preview-close-btn:hover { color: var(--text); background: var(--surface2); }
+/* Scroll area for previews larger than the allowed share of the canvas area */
+.mini-preview-view {
+  overflow: auto;
+}
 #mini-preview {
   display: block;
   image-rendering: pixelated;

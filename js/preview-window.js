@@ -23,21 +23,27 @@ export function renderPreviewWindow() {
 
 const isInterlacedDoc = () => S.layers.some(l => l.frame);
 
+const MAX_CANVAS_SIDE = 8192;   // browser canvas safety limit
+
+/** Preview scale: exactly the chosen one (only limited by the canvas size safety cap). */
+function previewScale() {
+  return Math.min(S.previewScale, MAX_CANVAS_SIDE / (S.width * S.pixelAspect), MAX_CANVAS_SIDE / S.height);
+}
+
 /**
- * Effective preview scale: the chosen scale, reduced (uniformly, keeping the
- * aspect ratio) so the window fits into the canvas area — tall C64 pictures
- * would otherwise cover the whole canvas. Whole factors keep pixels crisp.
+ * Large previews (tall C64 pictures, high scales) scroll inside a view of at
+ * most 60 % of the canvas area instead of covering the whole editor.
  */
-function previewFitScale() {
-  const maxW = Math.min(1024, canvasContainer.clientWidth * 0.6 || 1024);
-  const maxH = Math.min(1024, canvasContainer.clientHeight * 0.6 || 1024);
-  const fit = Math.min(S.previewScale, maxW / (S.width * S.pixelAspect), maxH / S.height);
-  return fit >= 1 ? Math.floor(fit) : fit;
+function limitPreviewView() {
+  const view = $('mini-preview-view');
+  view.style.maxWidth  = Math.max(160, Math.floor(canvasContainer.clientWidth  * 0.6)) + 'px';
+  view.style.maxHeight = Math.max(120, Math.floor(canvasContainer.clientHeight * 0.6)) + 'px';
 }
 
 function drawPreview() {
   if (!S.previewVisible) return;
-  const scale = previewFitScale();
+  limitPreviewView();
+  const scale = previewScale();
   const pw = Math.max(1, Math.round(S.width * S.pixelAspect * scale));
   const ph = Math.max(1, Math.round(S.height * scale));
   if (miniPreviewCanvas.width !== pw || miniPreviewCanvas.height !== ph) {

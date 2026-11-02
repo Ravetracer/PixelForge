@@ -1,22 +1,26 @@
-// Build a deployable copy of PixelForge.
+// Build the distribution package of PixelForge.
 //
 //   npm run build  →  dist/pixelforge/            (upload this folder's contents)
 //                     dist/pixelforge-<version>.zip
 //
-// The app needs no compilation; this collects exactly the files the website
-// serves, stamps a version on the entry script (so browsers fetch the new
-// build after an update) and packs a ZIP. Node built-ins only.
+// Development uses the ES modules in js/ directly. For distribution, esbuild
+// bundles them into one minified app.js (classic script, so it also runs from
+// file://), minifies style.css, and index.html is pointed at app.js with the
+// build version as query string so browsers fetch a new build after updates.
 
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateRawSync } from 'node:zlib';
 import { execSync } from 'node:child_process';
+import { build } from 'esbuild';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dist = join(root, 'dist');
 const out = join(dist, 'pixelforge');
-const FILES = ['index.html', 'style.css', 'js', 'LICENSE'];
+const COPY = ['index.html', 'LICENSE'];
+// Browsers with ES2020 + current Canvas features (Chrome/Edge 90+, Firefox 90+, Safari 15+)
+const TARGET = ['es2020', 'chrome90', 'firefox90', 'safari15'];
 
 const version = (() => {
   const date = new Date().toISOString().slice(0, 10);
@@ -31,12 +35,42 @@ const version = (() => {
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-for (const f of FILES) cpSync(join(root, f), join(out, f), { recursive: true });
+for (const f of COPY) cpSync(join(root, f), join(out, f), { recursive: true });
 
-// cache busting for the entry module
+// all modules → one minified classic script
+await build({
+  entryPoints: [join(root, 'js/main.js')],
+  outfile: join(out, 'app.js'),
+  bundle: true,
+  minify: true,
+  format: 'iife',
+  target: TARGET,
+  legalComments: 'none',
+  banner: { js: '"use strict";' },   // the modules ran in strict mode; keep it for the classic script
+  logLevel: 'warning',
+});
+await build({
+  entryPoints: [join(root, 'style.css')],
+  outfile: join(out, 'style.css'),
+  bundle: true,
+  minify: true,
+  target: TARGET,
+  logLevel: 'warning',
+});
+
+// index.html: load the bundle (version query for cache busting)
 const indexPath = join(out, 'index.html');
-writeFileSync(indexPath, readFileSync(indexPath, 'utf8')
-  .replace('src="js/main.js"', `src="js/main.js?v=${version}"`));
+const html = readFileSync(indexPath, 'utf8');
+const entry = '<script type="module" src="js/main.js"></script>';
+if (!html.includes(entry)) throw new Error('index.html: entry script tag not found');
+writeFileSync(indexPath, html
+  .replace(entry, `<script src="app.js?v=${version}"></script>`)
+  .replace('href="style.css"', `href="style.css?v=${version}"`)
+  // light HTML minification: comments and indentation only (index.html has no <pre>/<textarea>;
+  // whitespace between inline elements is kept as a newline)
+  .replace(/<!--[\s\S]*?-->/g, '')
+  .replace(/^[ \t]+/gm, '')
+  .replace(/\n{2,}/g, '\n'));
 
 // ── ZIP (deflate) ─────────────────────────────────────────────
 

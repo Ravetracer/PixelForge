@@ -13,7 +13,8 @@ import { showToast } from '../toast.js';
 import { dropFloating, resetSelection } from '../selection.js';
 import { makeBgLayer, updateC64UI } from './c64-ui.js';
 import { BG, c64IndexOfHex, indicesToPixels, pixelsToIndices } from './colors.js';
-import { MODES, currentMode, modeRuleText } from './modes.js';
+import { MODES, PAGE_HEIGHT, currentMode, encodePages, enforcePages, modeRuleText, tallHeight } from './modes.js';
+import { createZip } from '../zip.js';
 import { detectFormat, formatForMode } from './formats.js';
 import { decodeNufli, emptyNufliMemory, encodeNufliRegion } from './nufli.js';
 
@@ -25,7 +26,7 @@ import { decodeNufli, emptyNufliMemory, encodeNufliRegion } from './nufli.js';
  * Switch the editor to a C64 mode document built from an index buffer
  * (or one buffer per frame for interlaced modes).
  */
-export function openC64Document(modeId, indices, bgIdx, data = null) {
+export function openC64Document(modeId, indices, bgIdx, data = null, height = MODES[modeId].height) {
   const mode = MODES[modeId];
   S.c64Data    = data;
   S.c64Mode    = true;
@@ -33,7 +34,7 @@ export function openC64Document(modeId, indices, bgIdx, data = null) {
   S.pixelAspect = mode.aspect;
   S.c64BgColor = rgbaToHex(...C64_PALETTE_RGB[bgIdx]);
   S.width      = mode.width;
-  S.height     = mode.height;
+  S.height     = mode.tall ? tallHeight(height) : mode.height;
   S.layerIdCtr = 0;
   const frames = mode.frames ? indices : [indices];
   S.layers = [
@@ -60,8 +61,8 @@ export function openC64Document(modeId, indices, bgIdx, data = null) {
   updateC64UI();
 }
 
-/** Empty document in a C64 mode. */
-export function newC64Document(modeId, bgHex) {
+/** Empty document in a C64 mode (tall modes accept a height). */
+export function newC64Document(modeId, bgHex, height) {
   const mode = MODES[modeId];
   const bgIdx = c64IndexOfHex(bgHex);
   if (modeId === 'nufli') {
@@ -71,8 +72,9 @@ export function newC64Document(modeId, bgHex) {
     openC64Document(modeId, new Uint8Array(mode.width * mode.height).fill(BG), bgIdx, data);
     return;
   }
-  const empty = () => new Uint8Array(mode.width * mode.height).fill(BG);
-  openC64Document(modeId, mode.frames ? Array.from({ length: mode.frames }, empty) : empty(), bgIdx);
+  const h = mode.tall ? tallHeight(height) : mode.height;
+  const empty = () => new Uint8Array(mode.width * h).fill(BG);
+  openC64Document(modeId, mode.frames ? Array.from({ length: mode.frames }, empty) : empty(), bgIdx, null, h);
 }
 
 /** Decode a picture file; returns false if the format is not recognised. */
@@ -141,7 +143,7 @@ export function enforceModeRules(pixelsList) {
   const idxList = pixelsList.map(p => pixelsToIndices(p, S.width, S.height, bgIdx));
   const decoded = mode.frames
     ? mode.decode(mode.encode(idxList, bgIdx))
-    : idxList.map(idx => mode.decode(mode.encode(idx, bgIdx)));
+    : idxList.map(idx => (mode.tall ? enforcePages(mode, idx, bgIdx, S.height) : mode.decode(mode.encode(idx, bgIdx))));
   return decoded.map(idx => indicesToPixels(idx, bgIdx));
 }
 
@@ -152,9 +154,10 @@ export function exportC64() {
   if (!mode) return;
   const format = formatForMode(mode.id);
   if (!format) { showToast(`No file format for ${mode.label} yet`, 'error'); return; }
-  if (S.width !== mode.width || S.height !== mode.height) {
+  if (S.width !== mode.width || (!mode.tall && S.height !== mode.height)) {
     showToast(`${mode.label} requires ${mode.width}×${mode.height}`, 'error'); return;
   }
+  if (mode.tall && S.height !== PAGE_HEIGHT) { exportPages(mode, format); return; }
   const bgIdx = c64IndexOfHex(S.c64BgColor);
   if (mode.stateful && !S.c64Data?.template) {
     showToast(`${mode.label} can only be saved for pictures loaded from a .nuf/.nup file`, 'error'); return;
@@ -168,6 +171,31 @@ export function exportC64() {
   a.click();
   URL.revokeObjectURL(a.href);
   showToast(`Exported as ${name}`, 'success');
+}
+
+/**
+ * Tall FLI/AFLI pictures: one standard file per 200-line page (the last page
+ * padded with background). Several pages are downloaded as one ZIP.
+ */
+function exportPages(mode, format) {
+  const bgIdx = c64IndexOfHex(S.c64BgColor);
+  const pages = encodePages(mode, currentIndices(), bgIdx, S.height).map(m => format.write(m));
+  if (pages.length === 1) {
+    download(pages[0], `image.${format.ext}`, 'application/octet-stream');
+    showToast(`Exported as image.${format.ext} (${S.height} lines, padded to ${PAGE_HEIGHT})`, 'success');
+    return;
+  }
+  const files = pages.map((data, i) => ({ name: `image_${i + 1}.${format.ext}`, data }));
+  download(createZip(files), `image_${format.ext}_${S.height}.zip`, 'application/zip');
+  showToast(`Exported ${pages.length} × ${format.label} pages (${S.height} lines) as ZIP`, 'success');
+}
+
+function download(bytes, name, type) {
+  const a = document.createElement('a');
+  a.download = name;
+  a.href = URL.createObjectURL(new Blob([bytes], { type }));
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // ── NUFLI: re-encode after each edit ──────────────────────────

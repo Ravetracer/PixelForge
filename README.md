@@ -27,6 +27,8 @@ Each mode enforces the colour limits of the real hardware while painting.
 | IFLI | Gunpaint, Funpaint II, Pixel Perfect (also packed) | Gunpaint `.gun` |
 | NUFLI | NUFLI Editor `.nuf`, packed `.nup` | `.nuf` (pictures loaded from a `.nuf`/`.nup` file) |
 
+FLI and AFLI pictures can also be taller than one screen (steps of 8 lines); they are saved as a ZIP of standard 200-line files.
+
 D64 disk images open in a C64-style directory browser that highlights the pictures that can be loaded.
 
 ## Running

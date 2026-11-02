@@ -1,6 +1,6 @@
 import { $ } from '../dom.js';
 import { initC64Picker } from '../c64/c64-ui.js';
-import { MODES } from '../c64/modes.js';
+import { MODES, tallHeight } from '../c64/modes.js';
 import { showToast } from '../toast.js';
 import { TR } from './tracer-state.js';
 import { tracerLivePreview } from './tracer.js';
@@ -26,7 +26,8 @@ export function tracerSetTarget(id) {
   const mode = MODES[id];
   TR.target = mode ? id : '';
   if (mode) {
-    TR.dstW = mode.width; TR.dstH = mode.height; TR.aspect = mode.aspect;
+    TR.dstW = mode.width; TR.aspect = mode.aspect;
+    TR.dstH = mode.tall ? tallHeight(parseInt($('tracer-c64-height').value, 10)) : mode.height;
   } else {
     TR.aspect = 1;
     TR.dstW = Math.max(1, Math.min(2048, parseInt($('tracer-dst-w').value) || 64));
@@ -37,6 +38,7 @@ export function tracerSetTarget(id) {
   TR.patternMix = !!mode && mode.id !== 'ifli' && mode.id !== 'hires';
   $('tracer-pattern-mix').checked = TR.patternMix;
   $('tracer-size-field').classList.toggle('hidden', !!mode);
+  $('tracer-c64-height-field').classList.toggle('hidden', !mode?.tall);
   $('tracer-custom-size').classList.toggle('hidden', !!mode || $('tracer-dst-preset').value !== 'custom');
   $('tracer-color-field').classList.toggle('hidden', !!mode);
   $('tracer-c64-group').classList.toggle('hidden', !mode || mode.id === 'nufli');
@@ -53,6 +55,10 @@ function updateColorFields() {
 }
 
 $('tracer-target').addEventListener('change', e => tracerSetTarget(e.target.value));
+$('tracer-c64-height').addEventListener('change', e => {
+  e.target.value = tallHeight(parseInt(e.target.value, 10));
+  tracerSetTarget(TR.target);
+});
 $('tracer-dst-preset').addEventListener('change', e => tracerApplyPreset(e.target.value));
 
 $('tracer-dst-w').addEventListener('change', () => {

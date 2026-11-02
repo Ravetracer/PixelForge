@@ -23,6 +23,7 @@ js/ - Application code as native ES modules (no bundler):
 - selection.js, selection-tools.js - Selection mask (`S.selection`), floating pixels (`S.floating`), transforms, clipboard, marching ants; mouse handling for select/lasso/wand/move
 - palette.js, color-controls.js, adjustments.js, reference.js - Palette/Lospec, colour pickers, image adjustments, reference image
 - crt.js - CRT look for the preview window
+- zip.js - minimal stored-ZIP writer (multi-file downloads, e.g. tall FLI/AFLI pages)
 - io.js, document.js, preview-window.js, toolbar.js, shortcuts.js, toast.js, help.js - Files, new image, UI chrome
 - c64/ - C64 graphics modes: modes.js (colour rules, encode/decode per mode), formats.js (file formats: detect/read/write), c64-document.js (open/load/export), nufli.js (NUFLI memory model, decoder, region encoder), d64.js + disk-browser.js (D64 directory), colors.js, c64-ui.js
 - tracer/ - Image tracer (state, viewport, settings, dithering, image processing; pixelart.js: Kuwahara smoothing, edge detection, majority downscale, outlines, cleanup, LCh palette matching, IFLI frame split)

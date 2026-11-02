@@ -7,7 +7,7 @@ import { render } from '../render.js';
 import { setPrimaryColor, setSecondaryColor } from '../color-controls.js';
 import { renderPalette } from '../palette.js';
 import { exportC64 } from './c64-document.js';
-import { MODES } from './modes.js';
+import { MODES, tallHeight } from './modes.js';
 import { formatForMode } from './formats.js';
 
 // ══════════════════════════════════════════════════════════════
@@ -169,10 +169,18 @@ export function makeBgLayer(color) {
 $('new-c64-mode').addEventListener('change', e => {
   const mode = MODES[e.target.value];
   $('new-width').disabled  = !!mode;
-  $('new-height').disabled = !!mode;
+  // FLI/AFLI may be taller than one screen (steps of 8 lines, saved as 200-line pages)
+  $('new-height').disabled = !!mode && !mode.tall;
+  $('new-height').step = mode?.tall ? 8 : 1;
   $('modal-bg-field').classList.toggle('hidden', !!mode);
   $('modal-c64-bg-field').classList.toggle('hidden', !mode);
   if (mode) { $('new-width').value = mode.width; $('new-height').value = mode.height; }
+});
+
+// Tall modes: show the height snapped to whole character rows right away
+$('new-height').addEventListener('change', e => {
+  const mode = MODES[$('new-c64-mode').value];
+  if (mode?.tall) e.target.value = tallHeight(parseInt(e.target.value, 10));
 });
 
 initC64Picker('c64-bg-picker', null, hex => { S.c64BgColor = hex; syncC64BgLayer(); render(); });

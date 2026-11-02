@@ -9,7 +9,7 @@ import { updateCursorForLock } from '../input.js';
 import { renderLayerPanel } from '../layer-panel.js';
 import { BG, c64IndexOfHex, nearestC64Color } from '../c64/colors.js';
 import { updateC64UI } from '../c64/c64-ui.js';
-import { MODES } from '../c64/modes.js';
+import { MODES, enforcePages } from '../c64/modes.js';
 import { openC64Document } from '../c64/c64-document.js';
 import { decodeNufli, emptyNufliMemory, encodeNufliRegion } from '../c64/nufli.js';
 import { updateSizeSelect } from '../document.js';
@@ -229,7 +229,8 @@ function convertToMode(mode, rgba, w, h) {
     const decoded = mode.decode(mode.encode(frames, bgIdx));
     return { mode, bgIdx, indices: decoded, ...displayOf(blendFrames(decoded, bgIdx), 320, 200, true) };
   }
-  const decoded = mode.decode(mode.encode(toBg(solid), bgIdx));
+  // FLI/AFLI may be taller than 200 lines: their rules are applied page by page
+  const decoded = mode.tall ? enforcePages(mode, toBg(solid), bgIdx, h) : mode.decode(mode.encode(toBg(solid), bgIdx));
   const shown = decoded.map(c => (c === BG ? bgIdx : c));
   return { mode, bgIdx, indices: decoded, ...displayOf(shown, w, h, false, mode.aspect) };
 }
@@ -291,7 +292,7 @@ function _showTracerResult(pixels, w, h) {
   tracerResultCtx.imageSmoothingEnabled = false;
   tracerResultCtx.drawImage(tmp, 0, 0, dw, dh);
   const mode = MODES[TR.target];
-  $('tracer-result-info').textContent = mode ? `${mode.label} · ${mode.width} × ${mode.height}` : `${w} × ${h} px`;
+  $('tracer-result-info').textContent = mode ? `${mode.label} · ${mode.width} × ${TR.dstH}` : `${w} × ${h} px`;
 }
 
 // ── Execute trace → load into main canvas ─────────────────────
@@ -301,7 +302,7 @@ $('tracer-execute').addEventListener('click', () => {
   const res = traceImage();
 
   if (res.mode) {
-    openC64Document(res.mode.id, res.indices, res.bgIdx, res.data ?? null);
+    openC64Document(res.mode.id, res.indices, res.bgIdx, res.data ?? null, res.h);
     closeTracer();
     showToast(`Traced to ${res.mode.label}`, 'success');
     return;

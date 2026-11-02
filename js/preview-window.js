@@ -1,5 +1,5 @@
 import { S } from './state.js';
-import { $, mainCanvas, miniPreviewCanvas, miniPreviewCtx, off, offCtx } from './dom.js';
+import { $, canvasContainer, mainCanvas, miniPreviewCanvas, miniPreviewCtx, off, offCtx } from './dom.js';
 import { layerPixelsForDisplay } from './selection.js';
 import { interlaceImage } from './render.js';
 import { renderCrt } from './crt.js';
@@ -23,10 +23,23 @@ export function renderPreviewWindow() {
 
 const isInterlacedDoc = () => S.layers.some(l => l.frame);
 
+/**
+ * Effective preview scale: the chosen scale, reduced (uniformly, keeping the
+ * aspect ratio) so the window fits into the canvas area — tall C64 pictures
+ * would otherwise cover the whole canvas. Whole factors keep pixels crisp.
+ */
+function previewFitScale() {
+  const maxW = Math.min(1024, canvasContainer.clientWidth * 0.6 || 1024);
+  const maxH = Math.min(1024, canvasContainer.clientHeight * 0.6 || 1024);
+  const fit = Math.min(S.previewScale, maxW / (S.width * S.pixelAspect), maxH / S.height);
+  return fit >= 1 ? Math.floor(fit) : fit;
+}
+
 function drawPreview() {
   if (!S.previewVisible) return;
-  const pw = Math.max(1, Math.min(1024, S.width * S.pixelAspect * S.previewScale));
-  const ph = Math.max(1, Math.min(1024, S.height * S.previewScale));
+  const scale = previewFitScale();
+  const pw = Math.max(1, Math.round(S.width * S.pixelAspect * scale));
+  const ph = Math.max(1, Math.round(S.height * scale));
   if (miniPreviewCanvas.width !== pw || miniPreviewCanvas.height !== ph) {
     miniPreviewCanvas.width  = pw;
     miniPreviewCanvas.height = ph;

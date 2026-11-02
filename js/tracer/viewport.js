@@ -1,6 +1,10 @@
 import { $ } from '../dom.js';
 import { TR, tracerCanvas, tracerCtx, tracerWrap } from './tracer-state.js';
 import { tracerLivePreview } from './tracer.js';
+import { MODES, tallHeight } from '../c64/modes.js';
+
+/** FLI/AFLI targets: the crop height is free (steps of 8 lines) via the top/bottom edges. */
+const tallTarget = () => !!MODES[TR.target]?.tall;
 
 // ── Canvas sizing ─────────────────────────────────────────────
 
@@ -102,7 +106,33 @@ function tracerGetHandle(cx, cy) {
     if (Math.abs(cx - c.x) <= TRACER_HANDLE_HIT && Math.abs(cy - c.y) <= TRACER_HANDLE_HIT)
       return c.name;
   }
+  // tall targets: top and bottom edges change the height only
+  if (tallTarget() && cx > tl.x && cx < br.x) {
+    if (Math.abs(cy - br.y) <= TRACER_HANDLE_HIT) return 's';
+    if (Math.abs(cy - tl.y) <= TRACER_HANDLE_HIT) return 'n';
+  }
   return null;
+}
+
+/**
+ * Drag the top/bottom edge: the width stays, the height snaps to whole
+ * character rows (8 lines) and becomes the target height.
+ */
+function tracerResizeEdgeTo(cy) {
+  const ip = canvasToImg(0, cy);
+  const ih = TR.srcImage.naturalHeight;
+  const ay = TR.resizeAnchorImgY;
+  const pxPerLine = TR.cropW / (TR.dstW * TR.aspect);       // source pixels per C64 line
+  const room = TR.resizeHandle === 's' ? ih - ay : ay;       // space up to the image edge
+  const maxLines = Math.max(8, Math.floor(room / pxPerLine / 8) * 8);
+  const lines = Math.min(maxLines, tallHeight(Math.abs(ip.y - ay) / pxPerLine));
+  TR.cropH = lines * pxPerLine;
+  TR.cropY = TR.resizeHandle === 's' ? ay : ay - TR.cropH;
+  if (lines !== TR.dstH) {
+    TR.dstH = lines;
+    $('tracer-c64-height').value = lines;
+    tracerLivePreview();
+  }
 }
 
 // ── Render tracer canvas ──────────────────────────────────────
@@ -167,6 +197,14 @@ export function tracerRender() {
   tracerCtx.fillStyle = '#fff';
   tracerCtx.strokeStyle = 'rgba(0,0,0,.5)';
   tracerCtx.lineWidth = 1;
+  // tall targets: bars in the middle of the top and bottom edge (height handles)
+  if (tallTarget()) {
+    const mx = (ctl.x + cbr.x) / 2;
+    [ctl.y, cbr.y].forEach(hy => {
+      tracerCtx.fillRect(mx - hs * 1.5, hy - hs / 3, hs * 3, hs * 2 / 3);
+      tracerCtx.strokeRect(mx - hs * 1.5, hy - hs / 3, hs * 3, hs * 2 / 3);
+    });
+  }
   [[ctl.x, ctl.y],[cbr.x, ctl.y],[ctl.x, cbr.y],[cbr.x, cbr.y]].forEach(([hx,hy]) => {
     tracerCtx.fillRect(hx - hs/2, hy - hs/2, hs, hs);
     tracerCtx.strokeRect(hx - hs/2, hy - hs/2, hs, hs);
@@ -238,6 +276,8 @@ tracerWrap.addEventListener('mousedown', e => {
       ne: [TR.cropX,             TR.cropY + TR.cropH],
       sw: [TR.cropX + TR.cropW, TR.cropY],
       se: [TR.cropX,             TR.cropY],
+      s:  [TR.cropX,             TR.cropY],
+      n:  [TR.cropX,             TR.cropY + TR.cropH],
     };
     [TR.resizeAnchorImgX, TR.resizeAnchorImgY] = anchorMap[handle];
   } else if (inCropBox(cx, cy)) {
@@ -261,7 +301,8 @@ document.addEventListener('mousemove', e => {
   const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
 
   if (TR.isResizingCrop) {
-    tracerResizeCropTo(cx, cy);
+    if (TR.resizeHandle === 'n' || TR.resizeHandle === 's') tracerResizeEdgeTo(cy);
+    else tracerResizeCropTo(cx, cy);
     tracerRender();
   } else if (TR.isDraggingCrop) {
     const ip = canvasToImg(cx, cy);
@@ -304,6 +345,7 @@ tracerWrap.addEventListener('mousemove', e => {
   const handle = tracerGetHandle(cx, cy);
   if      (handle === 'nw' || handle === 'se') tracerWrap.style.cursor = 'nwse-resize';
   else if (handle === 'ne' || handle === 'sw') tracerWrap.style.cursor = 'nesw-resize';
+  else if (handle === 'n'  || handle === 's')  tracerWrap.style.cursor = 'ns-resize';
   else if (inCropBox(cx, cy))                  tracerWrap.style.cursor = 'move';
   else                                         tracerWrap.style.cursor = 'grab';
 });

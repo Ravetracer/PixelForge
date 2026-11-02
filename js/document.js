@@ -73,7 +73,7 @@ $('modal-cancel').addEventListener('click', () => {
 $('modal-confirm').addEventListener('click', () => {
   const modeId = $('new-c64-mode').value;
   if (MODES[modeId]) {
-    newC64Document(modeId, $('new-c64-bg').value);
+    newC64Document(modeId, $('new-c64-bg').value, parseInt($('new-height').value, 10));
   } else {
     const w = Math.max(1, Math.min(2048, parseInt($('new-width').value)  || 32));
     const h = Math.max(1, Math.min(2048, parseInt($('new-height').value) || 32));

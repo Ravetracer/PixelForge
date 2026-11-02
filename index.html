@@ -426,8 +426,8 @@
             <option value="">Normal (any size, any colour)</option>
             <option value="multicolor">C64 Multicolor bitmap — 160×200</option>
             <option value="hires">C64 Hires bitmap — 320×200</option>
-            <option value="fli">C64 FLI (multicolor) — 160×200</option>
-            <option value="afli">C64 AFLI (hires FLI) — 320×200</option>
+            <option value="fli">C64 FLI (multicolor) — 160×200, height adjustable</option>
+            <option value="afli">C64 AFLI (hires FLI) — 320×200, height adjustable</option>
             <option value="ifli">C64 IFLI (interlaced FLI) — 2 × 160×200</option>
             <option value="nufli">C64 NUFLI — 320×200 (load a .nuf to be able to save)</option>
           </select>
@@ -485,11 +485,15 @@
               <option value="">Normal image (any size)</option>
               <option value="multicolor" selected>C64 Multicolor — 160×200</option>
               <option value="hires">C64 Hires — 320×200</option>
-              <option value="fli">C64 FLI — 160×200</option>
-              <option value="afli">C64 AFLI — 320×200</option>
+              <option value="fli">C64 FLI — 160 wide, height adjustable</option>
+              <option value="afli">C64 AFLI — 320 wide, height adjustable</option>
               <option value="ifli">C64 IFLI — 2 × 160×200</option>
               <option value="nufli">C64 NUFLI — 320×200 (not savable)</option>
             </select>
+          </div>
+          <div class="tracer-field hidden" id="tracer-c64-height-field" title="FLI/AFLI: height in steps of 8 lines. Taller than 200 lines is saved as several standard 200-line files.">
+            <label>Height (lines)</label>
+            <input type="number" id="tracer-c64-height" class="tracer-number" value="200" min="8" max="2000" step="8">
           </div>
           <div class="tracer-field" id="tracer-size-field">
             <label>Size preset</label>
@@ -838,6 +842,9 @@
           </table>
           <div class="help-note">In the FLI modes (FLI, AFLI, IFLI) the left 3 character columns show the C64's <em>FLI bug</em> and can only hold background. They are hatched in the grid.</div>
 
+          <h3>Tall FLI and AFLI pictures</h3>
+          <p>FLI and AFLI pictures can be taller than one screen — useful for portraits shown with a scrolling viewer. Set the height in <strong>New Image</strong> or in the tracer (steps of 8 lines, up to 2000). There is no standard file format for tall pictures, so <strong>Save</strong> splits them into standard 200-line files (<code>image_1.bml</code>, <code>image_2.bml</code>, …) and downloads them as one ZIP; the last part is filled up with background. Each part loads in any FLI/AFLI viewer. Pictures shorter than 200 lines are saved as one padded file.</p>
+
           <h3>NUFLI</h3>
           <p>NUFLI combines hires FLI with sprites behind the bitmap, and even covers the FLI bug area with sprites. Its colour limits depend on each other across whole columns, so instead of blocking a stroke PixelForge fits it in after you release the mouse: pixels that NUFLI cannot show get the nearest possible colour, and a message tells you how many. Pixels outside the stroke are never changed.</p>
           <p>* A <code>.nuf</code> file contains the NUFLI display program. PixelForge keeps it from the loaded file, so saving works for pictures loaded from <code>.nuf</code> or <code>.nup</code> files. A new NUFLI picture can be edited but not saved.</p>
@@ -883,7 +890,7 @@
           </ul>
 
           <h3>Target</h3>
-          <p><strong>Normal image</strong> lets you pick a size preset or a custom size. The <strong>C64</strong> targets (Multicolor, Hires, FLI, AFLI, IFLI, NUFLI) use the mode's resolution and palette, and the result is converted with that mode's colour rules, so it opens as an editable C64 picture. The crop box follows the mode's displayed aspect ratio. For modes with a background colour, the tracer picks the most frequent colour unless you choose one. Traced NUFLI pictures can be edited but not saved (see C64 Graphics Modes).</p>
+          <p><strong>Normal image</strong> lets you pick a size preset or a custom size. The <strong>C64</strong> targets (Multicolor, Hires, FLI, AFLI, IFLI, NUFLI) use the mode's resolution and palette, and the result is converted with that mode's colour rules, so it opens as an editable C64 picture. The crop box follows the mode's displayed aspect ratio. For FLI and AFLI you can set the height (steps of 8 lines) to trace portraits into one tall picture: type it in, or drag the top or bottom edge of the crop box — the height snaps to 8-line steps while the width stays. For modes with a background colour, the tracer picks the most frequent colour unless you choose one. Traced NUFLI pictures can be edited but not saved (see C64 Graphics Modes).</p>
 
           <h3>Style: Pixel art</h3>
           <p>The default style aims for results that look pixelled by hand, so only little touch-up is needed:</p>

@@ -38,7 +38,15 @@ npm install
 npm start
 ```
 
-and open the printed URL. For deployment, copy `index.html`, `style.css` and `js/` to any static web host.
+and open the printed URL.
+
+## Deployment
+
+```sh
+npm run build
+```
+
+creates `dist/pixelforge/` and `dist/pixelforge-<version>.zip` with exactly the files the website needs (`index.html`, `style.css`, `js/`, `LICENSE`). Upload them to any static web host — no server-side runtime is required. The entry script carries the build version as a query string so browsers load the new version after an update.
 
 ## License
 

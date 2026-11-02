@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Browser-based pixel art editor",
   "scripts": {
-    "start": "serve ."
+    "start": "serve .",
+    "build": "node scripts/build.mjs"
   },
   "devDependencies": {
     "serve": "^14.2.6"

@@ -16,7 +16,7 @@ import { updateSizeSelect } from '../document.js';
 import { showToast } from '../toast.js';
 import { TR, tracerWrap } from './tracer-state.js';
 import { resultViewShown, setResultImage } from './result-view.js';
-import { tracerFitToView, tracerRender, tracerResizeCanvas, tracerUpdateCropFromDst } from './viewport.js';
+import { tracerFitToView, tracerRender, tracerResizeCanvas, tracerResetCrop } from './viewport.js';
 import { applyDithering } from './dither.js';
 import { applyEnhancements, tracerDownscale } from './image-processing.js';
 import {
@@ -57,7 +57,7 @@ $('tracer-file-input').addEventListener('change', e => {
       TR.srcImage  = img;
       TR.srcName   = file.name;
       tracerFitToView();
-      tracerUpdateCropFromDst();
+      tracerResetCrop();
       tracerRender();
       tracerLivePreview();
       $('tracer-src-info').textContent = `${file.name} (${img.naturalWidth}×${img.naturalHeight})`;
@@ -81,7 +81,7 @@ tracerWrap.addEventListener('drop', e => {
       img.onload = () => {
         TR.srcImage = img; TR.srcName = file.name;
         tracerFitToView();
-        tracerUpdateCropFromDst();
+        tracerResetCrop();
         tracerRender(); tracerLivePreview();
         $('tracer-src-info').textContent = `${file.name} (${img.naturalWidth}×${img.naturalHeight})`;
       };
@@ -140,7 +140,7 @@ function traceImage() {
 }
 
 function tracePhoto(w, h) {
-  let pixels = tracerDownscale(TR.srcImage, TR.cropX, TR.cropY, TR.cropW, TR.cropH, w, h);
+  let pixels = tracerDownscale(TR.srcImage, TR.cropX, TR.cropY, TR.cropW, TR.cropH, w, h, TR.cropRot);
   pixels = applyEnhancements(pixels, w, h);
   const pal = tracerBuildPalette(pixels);
   return pal ? applyDithering(pixels, w, h, pal) : new Uint8ClampedArray(pixels);
@@ -149,7 +149,7 @@ function tracePhoto(w, h) {
 function tracePixelArt(w, h) {
   const k = oversample(w, h);
   const ww = w * k, wh = h * k;
-  let work = tracerDownscale(TR.srcImage, TR.cropX, TR.cropY, TR.cropW, TR.cropH, ww, wh);
+  let work = tracerDownscale(TR.srcImage, TR.cropX, TR.cropY, TR.cropW, TR.cropH, ww, wh, TR.cropRot);
   work = applyEnhancements(work, ww, wh);
   work = kuwahara(work, ww, wh, Math.round((TR.smoothing / 100) * k * 0.75));
 

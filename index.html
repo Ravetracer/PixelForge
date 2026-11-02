@@ -239,6 +239,7 @@
             <canvas id="sel-canvas"></canvas>
           </div>
         </div>
+        <canvas id="ref-handles" class="hidden"></canvas>
         <div id="mini-preview-box">
           <div class="mini-preview-header" id="mini-preview-header">
             <span class="mini-preview-label">Preview</span>
@@ -279,6 +280,7 @@
           <div class="panel-header">
             <span>Reference Image</span>
             <div class="btn-row">
+              <button id="btn-ref-lock"  class="small-btn"        title="Lock position, scale and rotation (locks automatically once you paint)">🔓</button>
               <button id="btn-ref-vis"   class="small-btn active" title="Toggle visibility">👁</button>
               <button id="btn-load-ref"  class="small-btn"        title="Load reference image">…</button>
               <button id="btn-clear-ref" class="small-btn"        title="Remove reference">✕</button>
@@ -296,20 +298,16 @@
             </div>
             <div class="slider-row">
               <label>Scale</label>
-              <input type="range" id="ref-scale" min="10" max="400" value="100" step="5">
-              <span id="ref-scale-val">100%</span>
+              <input type="range" id="ref-scale" min="0" max="1000" value="384" title="Logarithmic: 10 % … 4000 %">
+              <input type="number" id="ref-scale-input" class="ref-num" min="10" max="4000" step="1" value="100" title="Scale in %">
             </div>
             <div class="slider-row">
-              <label>X</label>
-              <input type="range" id="ref-offx" min="-100" max="100" value="0">
-              <span id="ref-offx-val">0%</span>
+              <label>Rotate</label>
+              <span class="ref-spacer"></span>
+              <input type="number" id="ref-rot-input" class="ref-num" min="-180" max="180" step="0.5" value="0" title="Rotation in degrees">
             </div>
-            <div class="slider-row">
-              <label>Y</label>
-              <input type="range" id="ref-offy" min="-100" max="100" value="0">
-              <span id="ref-offy-val">0%</span>
-            </div>
-            <button id="btn-reset-ref-transform" class="tb-btn fw ref-reset-btn">Reset position &amp; scale</button>
+            <button id="btn-ref-adjust" class="tb-btn fw ref-reset-btn" title="On the canvas: drag the image to move it, corner handles to resize, the round knob to rotate (Shift snaps to 15°); scroll scales, Shift+scroll rotates">✥ Adjust on canvas</button>
+            <button id="btn-reset-ref-transform" class="tb-btn fw ref-reset-btn">Reset position, scale &amp; rotation</button>
           </div>
           <div id="ref-empty" class="ref-empty">No reference loaded</div>
           <input type="file" id="ref-file-input" accept="image/*" hidden>
@@ -472,6 +470,9 @@
             <button id="tracer-load-src" class="tb-btn">Load Source…</button>
             <span id="tracer-src-info" class="tracer-src-info">No image loaded</span>
             <div style="flex:1"></div>
+            <label class="tracer-rot-label" title="Rotation of the selection — or drag the round knob above the box (Shift snaps to 15°)">↻
+              <input type="number" id="tracer-rot" class="tracer-number tracer-rot-input" value="0" min="-180" max="180" step="0.5">°
+            </label>
             <button id="tracer-zoom-out" class="tb-btn icon" title="Zoom out">−</button>
             <span id="tracer-zoom-label" class="tb-info">—</span>
             <button id="tracer-zoom-in"  class="tb-btn icon" title="Zoom in">+</button>
@@ -481,7 +482,7 @@
           <div id="tracer-canvas-wrap">
             <canvas id="tracer-canvas"></canvas>
           </div>
-          <div class="tracer-hint">Drag to pan · Scroll to zoom · Drag crop box to reposition</div>
+          <div class="tracer-hint">Drag to pan · Scroll to zoom · Drag crop box to reposition · Drag the round knob to rotate (Shift snaps)</div>
         </div>
 
         <!-- Middle: traced result with zoom, 1:1 view and panning -->
@@ -818,9 +819,11 @@
             <li>Click <strong>…</strong> to load any raster image (PNG, JPG, GIF, …).</li>
             <li>Toggle the overlay with the <strong>👁</strong> button.</li>
             <li><strong>Opacity</strong> — how transparent the reference overlay is (default 50 %).</li>
-            <li><strong>Scale</strong> — resize the reference independently of the canvas (10–400 %).</li>
-            <li><strong>X / Y</strong> — offset the reference horizontally and vertically as a percentage of the canvas size.</li>
-            <li><strong>Reset position &amp; scale</strong> — returns position and scale to their defaults.</li>
+            <li><strong>Scale</strong> — resize the reference independently of the canvas (10–4000 %). The slider is logarithmic; type an exact value into the field next to it.</li>
+            <li><strong>Rotate</strong> — exact rotation angle around the centre of the reference (−180° … 180°).</li>
+            <li><strong>Adjust on canvas</strong> — shows a frame with handles around the reference; the canvas does not paint meanwhile. Drag inside the frame to move the reference, drag a corner handle to resize it proportionally, drag the round knob above the frame to rotate it (hold Shift to snap to 15°). Dragging outside the frame pans the view. Scroll scales around the mouse pointer, Shift+scroll rotates in 1° steps, Ctrl+scroll zooms the view. Choosing a tool or pressing Esc ends the mode.</li>
+            <li><strong>🔒 Lock</strong> — as soon as you paint the first pixel, the reference is locked so it cannot be moved, scaled or rotated by accident. Click the lock button to unlock it again.</li>
+            <li><strong>Reset position, scale &amp; rotation</strong> — returns the transform to its defaults.</li>
             <li>Click <strong>✕</strong> to unload the reference entirely.</li>
           </ul>
 

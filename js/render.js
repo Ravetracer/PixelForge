@@ -63,6 +63,19 @@ function drawCheckerboard() {
   bgCtx.putImageData(id, 0, 0);
 }
 
+/**
+ * Reference placement in ref-canvas pixels: centre and unrotated size.
+ * Base size fits the image into the canvas; S.refScale multiplies it,
+ * S.refOffX/Y shift the centre by a percentage of the canvas size.
+ */
+export function refLayout() {
+  const img = S.refImage;
+  const cw = refCanvas.width, ch = refCanvas.height;
+  const baseScale = (S.refScale / 100) * Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+  return { cx: cw / 2 + (S.refOffX / 100) * cw, cy: ch / 2 + (S.refOffY / 100) * ch,
+           dw: img.naturalWidth * baseScale, dh: img.naturalHeight * baseScale };
+}
+
 export function renderRefImage() {
   refCtx.clearRect(0, 0, refCanvas.width, refCanvas.height);
   if (!S.refImage || !S.refVisible) return;
@@ -70,16 +83,10 @@ export function renderRefImage() {
   refCtx.globalAlpha = S.refOpacity / 100;
   refCtx.imageSmoothingEnabled = true;
   refCtx.imageSmoothingQuality = 'high';
-  const img = S.refImage;
-  const cw = refCanvas.width, ch = refCanvas.height;
-  // Fit-to-canvas base scale, then apply user scale factor
-  const baseScale = (S.refScale / 100) * Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-  const dw = img.naturalWidth  * baseScale;
-  const dh = img.naturalHeight * baseScale;
-  // Center, then apply X/Y offset as percentage of canvas dimensions
-  const dx = (cw - dw) / 2 + (S.refOffX / 100) * cw;
-  const dy = (ch - dh) / 2 + (S.refOffY / 100) * ch;
-  refCtx.drawImage(img, dx, dy, dw, dh);
+  const { cx, cy, dw, dh } = refLayout();
+  refCtx.translate(cx, cy);
+  refCtx.rotate(S.refRotation * Math.PI / 180);
+  refCtx.drawImage(S.refImage, -dw / 2, -dh / 2, dw, dh);
   refCtx.restore();
 }
 

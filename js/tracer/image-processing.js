@@ -135,15 +135,36 @@ export function applyC64TileConstraints(pixels, w, h, bgHex) {
 
 // ── High-quality downscale via progressive halving ────────────
 
-export function tracerDownscale(srcImg, cropX, cropY, cropW, cropH, dstW, dstH) {
-  // First blit the cropped area onto a native-resolution canvas
+export function tracerDownscale(srcImg, cropX, cropY, cropW, cropH, dstW, dstH, rotDeg = 0) {
+  // First render the (rotated) crop box onto a canvas at native resolution,
+  // capped so huge crops stay within canvas limits
+  const cap = Math.max(8192, dstW, dstH);
+  const s = Math.min(1, cap / Math.max(cropW, cropH));
   let cur = document.createElement('canvas');
-  cur.width  = Math.round(cropW);
-  cur.height = Math.round(cropH);
+  cur.width  = Math.max(1, Math.round(cropW * s));
+  cur.height = Math.max(1, Math.round(cropH * s));
   const ctx = cur.getContext('2d');
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(srcImg, cropX, cropY, cropW, cropH, 0, 0, cur.width, cur.height);
+  // crop space → image space: centre of the canvas = centre of the crop box, rotated by rotDeg
+  const toImage = () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.translate(cur.width / 2, cur.height / 2);
+    ctx.scale(cur.width / cropW, cur.height / cropH);
+    ctx.rotate(-rotDeg * Math.PI / 180);
+    ctx.translate(-(cropX + cropW / 2), -(cropY + cropH / 2));
+  };
+  // Parts of the box outside the source image are traced as black
+  ctx.beginPath();
+  ctx.rect(0, 0, cur.width, cur.height);
+  toImage();
+  ctx.rect(0, 0, srcImg.naturalWidth, srcImg.naturalHeight);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#000';
+  ctx.fill('evenodd');
+  toImage();
+  ctx.drawImage(srcImg, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 
   // Progressive halving until we're close to target
   while (cur.width / 2 >= dstW && cur.height / 2 >= dstH) {

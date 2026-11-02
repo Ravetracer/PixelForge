@@ -12,8 +12,8 @@ export const TR = {
   viewScale:  1,
   viewOriginX: 0,   // canvas-px position of image top-left
   viewOriginY: 0,
-  // crop box in image-pixel coordinates
-  cropX: 0, cropY: 0, cropW: 0, cropH: 0,
+  // crop box in image-pixel coordinates (unrotated box), rotated by cropRot degrees around its centre
+  cropX: 0, cropY: 0, cropW: 0, cropH: 0, cropRot: 0,
   // destination
   dstW: 160, dstH: 200,
   target: 'multicolor',   // '' = normal image, otherwise a C64 mode id
@@ -36,6 +36,8 @@ export const TR = {
   isPanning: false, panStartX: 0, panStartY: 0,
   isDraggingCrop: false, cropDragOX: 0, cropDragOY: 0,
   isResizingCrop: false, resizeHandle: null, resizeAnchorImgX: 0, resizeAnchorImgY: 0,
+  resizeSignX: 0, resizeSignY: 0,   // local direction of the dragged handle from the box centre
+  isRotatingCrop: false, rotStartAngle: 0, rotStartValue: 0,
 };
 
 export const tracerCanvas   = $('tracer-canvas');

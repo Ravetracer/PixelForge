@@ -4,7 +4,7 @@ import { MODES, heightStep, snapHeight } from '../c64/modes.js';
 import { showToast } from '../toast.js';
 import { TR } from './tracer-state.js';
 import { tracerLivePreview } from './tracer.js';
-import { tracerRender, tracerUpdateCropFromDst } from './viewport.js';
+import { tracerRender, tracerAdaptCrop } from './viewport.js';
 
 // ── Destination settings UI ───────────────────────────────────
 
@@ -18,7 +18,7 @@ export function tracerApplyPreset(val) {
   TR.dstW = w; TR.dstH = h;
   $('tracer-dst-w').value = w;
   $('tracer-dst-h').value = h;
-  if (TR.srcImage) { tracerUpdateCropFromDst(); tracerRender(); tracerLivePreview(); }
+  if (TR.srcImage) { tracerAdaptCrop(); tracerRender(); tracerLivePreview(); }
 }
 
 /** Target: normal image or a C64 mode (fixed size, C64 palette, mode colour rules). */
@@ -45,7 +45,7 @@ export function tracerSetTarget(id) {
   $('tracer-color-field').classList.toggle('hidden', !!mode);
   $('tracer-c64-group').classList.toggle('hidden', !mode || mode.id === 'nufli');
   updateColorFields();
-  if (TR.srcImage) { tracerUpdateCropFromDst(); tracerRender(); tracerLivePreview(); }
+  if (TR.srcImage) { tracerAdaptCrop(); tracerRender(); tracerLivePreview(); }
 }
 
 function updateColorFields() {
@@ -66,11 +66,11 @@ $('tracer-dst-preset').addEventListener('change', e => tracerApplyPreset(e.targe
 
 $('tracer-dst-w').addEventListener('change', () => {
   TR.dstW = Math.max(1, Math.min(2048, parseInt($('tracer-dst-w').value) || 160));
-  if (TR.srcImage) { tracerUpdateCropFromDst(); tracerRender(); tracerLivePreview(); }
+  if (TR.srcImage) { tracerAdaptCrop(); tracerRender(); tracerLivePreview(); }
 });
 $('tracer-dst-h').addEventListener('change', () => {
   TR.dstH = Math.max(1, Math.min(2048, parseInt($('tracer-dst-h').value) || 200));
-  if (TR.srcImage) { tracerUpdateCropFromDst(); tracerRender(); tracerLivePreview(); }
+  if (TR.srcImage) { tracerAdaptCrop(); tracerRender(); tracerLivePreview(); }
 });
 
 $('tracer-style').addEventListener('change', e => { TR.style = e.target.value; updateColorFields(); tracerLivePreview(); });

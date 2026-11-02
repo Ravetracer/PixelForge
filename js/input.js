@@ -13,6 +13,7 @@ import { dropFloating } from './selection.js';
 import { BRUSH_TOOLS, beginStroke, endStroke, stampBrush, symmetricPixels, symmetricPoints, usesPixelPerfect } from './brush.js';
 import { SELECTION_TOOLS, selectionToolDown, selectionToolMove, selectionToolUp } from './selection-tools.js';
 import { currentMode, modeRuleText } from './c64/modes.js';
+import { lockRefAfterPaint } from './reference.js';
 
 // ══════════════════════════════════════════════════════════════
 //  Mouse / draw handlers
@@ -87,6 +88,7 @@ previewCanvas.addEventListener('mousedown', e => {
       for (const [fx, fy] of symmetricPoints(x, y)) floodFill(fx, fy, c.r, c.g, c.b, 255);
       render();
       commitHistory();
+      lockRefAfterPaint();
       S.preDragSnapshot = null; S.isDrawing = false; break;
 
     case 'replace':
@@ -119,7 +121,7 @@ document.addEventListener('mousemove', e => {
     $('status-pos').textContent   = `${x} , ${y}`;
     $('status-color').textContent = hex;
     S.cursorX = x; S.cursorY = y;
-    if (!S.isDrawing) startCursorPulse();
+    if (!S.isDrawing && !S.refAdjust) startCursorPulse();
   } else if (S.cursorX >= 0 && !S.isDrawing) {
     S.cursorX = -1; S.cursorY = -1;
     clearPreview();
@@ -179,7 +181,7 @@ document.addEventListener('mouseup', e => {
     for (let i = 0; i < S.preDragSnapshot.length; i++) {
       if (S.preDragSnapshot[i] !== S.pixels[i]) { changed = true; break; }
     }
-    if (changed) commitHistory();
+    if (changed) { commitHistory(); lockRefAfterPaint(); }
   }
   S.preDragSnapshot = null;
   S.isDrawing = false;

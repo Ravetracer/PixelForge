@@ -6,6 +6,7 @@ import { render, setupCanvases, updateGridCSS } from './render.js';
 import { fitZoom, zoomIn, zoomOut } from './view.js';
 import { dropFloating, renderSelection, transformSelection } from './selection.js';
 import { BRUSH_SIZE_MAX, BRUSH_SIZE_MIN } from './brush.js';
+import { setRefAdjust } from './reference.js';
 
 
 // ══════════════════════════════════════════════════════════════
@@ -30,6 +31,7 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     // Floating pixels stay movable only while the move tool is active
     if (btn.dataset.tool !== 'move') dropFloating();
+    if (S.refAdjust) setRefAdjust(false);
     document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     S.tool = btn.dataset.tool;

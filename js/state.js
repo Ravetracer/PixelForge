@@ -28,10 +28,13 @@ const S_base = {
   refImage: null,
   refVisible: true,
   refOpacity: 50,   // 0–100
-  refOffX: 0,       // horizontal offset, −100..+100 % of canvas width
-  refOffY: 0,       // vertical offset,   −100..+100 % of canvas height
-  refScale: 100,    // scale multiplier, 10..400 %
+  refOffX: 0,       // horizontal offset of the centre, % of canvas width (unbounded when dragged)
+  refOffY: 0,       // vertical offset of the centre,   % of canvas height
+  refScale: 100,    // scale multiplier, 10..4000 %
+  refRotation: 0,   // degrees, −180..180, around the reference centre
   refName: '',
+  refAdjust: false, // canvas drags move/rotate/scale the reference instead of painting
+  refLocked: false, // set automatically once the user paints; blocks all reference transforms
 
   // C64 multicolor bitmap mode
   c64Mode: false,

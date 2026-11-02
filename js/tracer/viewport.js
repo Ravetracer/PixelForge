@@ -1,7 +1,7 @@
 import { $ } from '../dom.js';
 import { TR, tracerCanvas, tracerCtx, tracerWrap } from './tracer-state.js';
 import { tracerLivePreview } from './tracer.js';
-import { MODES, heightStep, snapHeight } from '../c64/modes.js';
+import { MODES, snapHeight } from '../c64/modes.js';
 
 /** C64 targets: the crop height is free (in the mode's line steps) via the top/bottom edges. */
 const tallTarget = () => !!MODES[TR.target];
@@ -53,21 +53,32 @@ $('tracer-zoom-out').addEventListener('click', () => {
 });
 $('tracer-zoom-fit').addEventListener('click', () => { tracerFitToView(); tracerRender(); });
 
-// ── Crop box helpers ──────────────────────────────────────────
+// ── Crop box geometry ─────────────────────────────────────────
+// The crop box is cropX/Y/W/H in source-image pixels, rotated by TR.cropRot
+// degrees around its centre. "Local" coordinates have their origin in the box
+// centre and their axes along the box edges.
 
-export function tracerUpdateCropFromDst() {
-  if (!TR.srcImage) return;
-  const iw = TR.srcImage.naturalWidth, ih = TR.srcImage.naturalHeight;
-  // C64 pixels are 2× wide visually, so use visual (display) aspect ratio for cropping
-  const dstAR = (TR.dstW * TR.aspect) / TR.dstH;
-  const srcAR = iw / ih;
-  let cw, ch;
-  if (dstAR > srcAR) { cw = iw; ch = iw / dstAR; }
-  else               { ch = ih; cw = ih * dstAR; }
-  TR.cropX = (iw - cw) / 2;
-  TR.cropY = (ih - ch) / 2;
-  TR.cropW = cw;
-  TR.cropH = ch;
+const cropAngle  = () => TR.cropRot * Math.PI / 180;
+const cropCenter = () => ({ x: TR.cropX + TR.cropW / 2, y: TR.cropY + TR.cropH / 2 });
+
+function setCropCenter(x, y) {
+  TR.cropX = x - TR.cropW / 2;
+  TR.cropY = y - TR.cropH / 2;
+}
+
+function rotate(x, y, a) {
+  const c = Math.cos(a), s = Math.sin(a);
+  return { x: x * c - y * s, y: x * s + y * c };
+}
+
+function localToImg(lx, ly) {
+  const c = cropCenter(), v = rotate(lx, ly, cropAngle());
+  return { x: c.x + v.x, y: c.y + v.y };
+}
+
+function imgToLocal(ix, iy) {
+  const c = cropCenter();
+  return rotate(ix - c.x, iy - c.y, -cropAngle());
 }
 
 // Convert image-pixel coords to canvas-pixel coords
@@ -81,59 +92,155 @@ function canvasToImg(cx, cy) {
            y: (cy - TR.viewOriginY) / TR.viewScale };
 }
 
-// Hit-test: is canvas point (cx,cy) inside the crop box?
-function inCropBox(cx, cy) {
-  const tl = imgToCanvas(TR.cropX, TR.cropY);
-  const br = imgToCanvas(TR.cropX + TR.cropW, TR.cropY + TR.cropH);
-  return cx >= tl.x && cx <= br.x && cy >= tl.y && cy <= br.y;
+function canvasToLocal(cx, cy) {
+  const p = canvasToImg(cx, cy);
+  return imgToLocal(p.x, p.y);
 }
 
-// ── Corner-handle hit-testing ─────────────────────────────────
+/** Crop box corners in canvas pixels (clockwise from top-left). */
+function cropCornersOnCanvas() {
+  const hw = TR.cropW / 2, hh = TR.cropH / 2;
+  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([lx, ly]) => {
+    const p = localToImg(lx, ly);
+    return imgToCanvas(p.x, p.y);
+  });
+}
 
-const TRACER_HANDLE_HIT = 10; // canvas-px detection radius
+/** Wrap to −180..180 and round to 0.1°. */
+function normalizeAngle(deg) {
+  const a = ((deg + 180) % 360 + 360) % 360 - 180;
+  return Math.round(a * 10) / 10;
+}
+
+export function tracerSetCropRotation(deg) {
+  TR.cropRot = normalizeAngle(deg);
+  $('tracer-rot').value = TR.cropRot;
+}
+
+/** Fit a fresh, unrotated crop box with the target's aspect ratio into the image. */
+export function tracerResetCrop() {
+  if (!TR.srcImage) return;
+  const iw = TR.srcImage.naturalWidth, ih = TR.srcImage.naturalHeight;
+  // C64 pixels are 2× wide visually, so use visual (display) aspect ratio for cropping
+  const dstAR = (TR.dstW * TR.aspect) / TR.dstH;
+  const srcAR = iw / ih;
+  let cw, ch;
+  if (dstAR > srcAR) { cw = iw; ch = iw / dstAR; }
+  else               { ch = ih; cw = ih * dstAR; }
+  TR.cropX = (iw - cw) / 2;
+  TR.cropY = (ih - ch) / 2;
+  TR.cropW = cw;
+  TR.cropH = ch;
+  tracerSetCropRotation(0);
+}
+
+/**
+ * Target or size changed: keep the selection's centre, width and rotation,
+ * only the height follows the new aspect ratio.
+ */
+export function tracerAdaptCrop() {
+  if (!TR.srcImage) return;
+  if (!(TR.cropW > 0 && TR.cropH > 0)) { tracerResetCrop(); return; }
+  const c = cropCenter();
+  TR.cropH = TR.cropW / ((TR.dstW * TR.aspect) / TR.dstH);
+  setCropCenter(c.x, c.y);
+}
+
+$('tracer-rot').addEventListener('input', e => {
+  tracerSetCropRotation(parseFloat(e.target.value) || 0);
+  tracerRender();
+  tracerLivePreview();
+});
+
+// ── Handle hit-testing ────────────────────────────────────────
+
+const TRACER_HANDLE_HIT = 10;   // canvas-px detection radius
+const ROT_HANDLE_DIST   = 26;   // canvas-px distance of the rotation knob above the top edge
+
+// local direction of each handle from the box centre
+const HANDLE_SIGNS = { nw: [-1, -1], ne: [1, -1], sw: [-1, 1], se: [1, 1], n: [0, -1], s: [0, 1] };
+
+function inCropBox(cx, cy) {
+  const l = canvasToLocal(cx, cy);
+  return Math.abs(l.x) <= TR.cropW / 2 && Math.abs(l.y) <= TR.cropH / 2;
+}
 
 function tracerGetHandle(cx, cy) {
   if (!TR.srcImage) return null;
-  const tl = imgToCanvas(TR.cropX,            TR.cropY);
-  const br = imgToCanvas(TR.cropX + TR.cropW,  TR.cropY + TR.cropH);
-  const corners = [
-    { name: 'nw', x: tl.x, y: tl.y },
-    { name: 'ne', x: br.x, y: tl.y },
-    { name: 'sw', x: tl.x, y: br.y },
-    { name: 'se', x: br.x, y: br.y },
-  ];
-  for (const c of corners) {
-    if (Math.abs(cx - c.x) <= TRACER_HANDLE_HIT && Math.abs(cy - c.y) <= TRACER_HANDLE_HIT)
-      return c.name;
+  const tol = TRACER_HANDLE_HIT / TR.viewScale;
+  const l = canvasToLocal(cx, cy);
+  const hw = TR.cropW / 2, hh = TR.cropH / 2;
+  if (Math.hypot(l.x, l.y + hh + ROT_HANDLE_DIST / TR.viewScale) <= tol) return 'rotate';
+  for (const name of ['nw', 'ne', 'sw', 'se']) {
+    const [sx, sy] = HANDLE_SIGNS[name];
+    if (Math.abs(l.x - sx * hw) <= tol && Math.abs(l.y - sy * hh) <= tol) return name;
   }
   // tall targets: top and bottom edges change the height only
-  if (tallTarget() && cx > tl.x && cx < br.x) {
-    if (Math.abs(cy - br.y) <= TRACER_HANDLE_HIT) return 's';
-    if (Math.abs(cy - tl.y) <= TRACER_HANDLE_HIT) return 'n';
+  if (tallTarget() && Math.abs(l.x) < hw) {
+    if (Math.abs(l.y - hh) <= tol) return 's';
+    if (Math.abs(l.y + hh) <= tol) return 'n';
   }
   return null;
+}
+
+// ── Crop resize / rotate ──────────────────────────────────────
+
+/** New box size: the anchor (opposite corner or edge) stays fixed. */
+function placeFromAnchor(w, h) {
+  TR.cropW = w;
+  TR.cropH = h;
+  const off = rotate(TR.resizeSignX * w / 2, TR.resizeSignY * h / 2, cropAngle());
+  setCropCenter(TR.resizeAnchorImgX + off.x, TR.resizeAnchorImgY + off.y);
+}
+
+/** Pointer position relative to the anchor, in box-aligned axes. */
+function anchorToPointer(cx, cy) {
+  const ip = canvasToImg(cx, cy);
+  return rotate(ip.x - TR.resizeAnchorImgX, ip.y - TR.resizeAnchorImgY, -cropAngle());
+}
+
+function tracerResizeCropTo(cx, cy) {
+  const AR = (TR.dstW * TR.aspect) / TR.dstH;
+  const v  = anchorToPointer(cx, cy);
+  const dw = Math.abs(v.x), dh = Math.abs(v.y);
+
+  // Dominant axis → maintain aspect ratio
+  let newW, newH;
+  if (dw === 0 && dh === 0) { newW = 8; newH = 8 / AR; }
+  else if (dw / (dh || 0.0001) >= AR) {
+    newW = Math.max(8, dw);
+    newH = newW / AR;
+  } else {
+    newH = Math.max(8 / AR, dh);
+    newW = newH * AR;
+  }
+  placeFromAnchor(newW, newH);
 }
 
 /**
  * Drag the top/bottom edge: the width stays, the height snaps to the
  * mode's line steps (usually whole character rows) and becomes the target height.
  */
-function tracerResizeEdgeTo(cy) {
-  const ip = canvasToImg(0, cy);
-  const ih = TR.srcImage.naturalHeight;
-  const ay = TR.resizeAnchorImgY;
-  const pxPerLine = TR.cropW / (TR.dstW * TR.aspect);       // source pixels per C64 line
-  const room = TR.resizeHandle === 's' ? ih - ay : ay;       // space up to the image edge
-  const mode = MODES[TR.target], step = heightStep(mode);
-  const maxLines = Math.max(step, Math.floor(room / pxPerLine / step) * step);
-  const lines = Math.min(maxLines, snapHeight(mode, Math.abs(ip.y - ay) / pxPerLine));
-  TR.cropH = lines * pxPerLine;
-  TR.cropY = TR.resizeHandle === 's' ? ay : ay - TR.cropH;
+function tracerResizeEdgeTo(cx, cy) {
+  const pxPerLine = TR.cropW / (TR.dstW * TR.aspect);   // source pixels per C64 line
+  const dist = Math.max(1, anchorToPointer(cx, cy).y * TR.resizeSignY);
+  const lines = snapHeight(MODES[TR.target], dist / pxPerLine);
+  placeFromAnchor(TR.cropW, lines * pxPerLine);
   if (lines !== TR.dstH) {
     TR.dstH = lines;
     $('tracer-c64-height').value = lines;
     tracerLivePreview();
   }
+}
+
+function pointerAngle(cx, cy) {
+  const ip = canvasToImg(cx, cy), c = cropCenter();
+  return Math.atan2(ip.y - c.y, ip.x - c.x);
+}
+
+function tracerRotateCropTo(cx, cy, snap) {
+  const deg = TR.rotStartValue + (pointerAngle(cx, cy) - TR.rotStartAngle) * 180 / Math.PI;
+  tracerSetCropRotation(snap ? Math.round(deg / 15) * 15 : deg);
 }
 
 // ── Render tracer canvas ──────────────────────────────────────
@@ -154,113 +261,87 @@ export function tracerRender() {
   }
 
   const iw = TR.srcImage.naturalWidth, ih = TR.srcImage.naturalHeight;
-  const ox = TR.viewOriginX, oy = TR.viewOriginY;
-  const sw = iw * TR.viewScale, sh = ih * TR.viewScale;
-
   tracerCtx.imageSmoothingEnabled = TR.viewScale < 1;
   tracerCtx.imageSmoothingQuality = 'high';
-  tracerCtx.drawImage(TR.srcImage, ox, oy, sw, sh);
+  tracerCtx.drawImage(TR.srcImage, TR.viewOriginX, TR.viewOriginY, iw * TR.viewScale, ih * TR.viewScale);
 
-  // Dark vignette outside crop area
-  const ctl = imgToCanvas(TR.cropX, TR.cropY);
-  const cbr = imgToCanvas(TR.cropX + TR.cropW, TR.cropY + TR.cropH);
+  const corners = cropCornersOnCanvas();
+
+  // Dark vignette outside the (rotated) crop area
   tracerCtx.save();
   tracerCtx.fillStyle = 'rgba(0,0,0,.55)';
-  // Top strip
-  tracerCtx.fillRect(0, 0, cw, ctl.y);
-  // Bottom strip
-  tracerCtx.fillRect(0, cbr.y, cw, ch - cbr.y);
-  // Left strip (middle band)
-  tracerCtx.fillRect(0, ctl.y, ctl.x, cbr.y - ctl.y);
-  // Right strip
-  tracerCtx.fillRect(cbr.x, ctl.y, cw - cbr.x, cbr.y - ctl.y);
+  tracerCtx.beginPath();
+  tracerCtx.rect(0, 0, cw, ch);
+  corners.forEach((p, i) => (i ? tracerCtx.lineTo(p.x, p.y) : tracerCtx.moveTo(p.x, p.y)));
+  tracerCtx.closePath();
+  tracerCtx.fill('evenodd');
   tracerCtx.restore();
 
-  // Crop box border
-  const bw = cbr.x - ctl.x, bh = cbr.y - ctl.y;
+  // Box, thirds and handles are drawn in the box's own (rotated) frame
+  const c  = cropCenter(), cc = imgToCanvas(c.x, c.y);
+  const bw = TR.cropW * TR.viewScale, bh = TR.cropH * TR.viewScale;
+  const x0 = -bw / 2, y0 = -bh / 2;
   tracerCtx.save();
+  tracerCtx.translate(cc.x, cc.y);
+  tracerCtx.rotate(cropAngle());
   tracerCtx.strokeStyle = '#fff';
   tracerCtx.lineWidth = 1.5;
-  tracerCtx.strokeRect(ctl.x, ctl.y, bw, bh);
+  tracerCtx.strokeRect(x0, y0, bw, bh);
   // Rule-of-thirds lines
   tracerCtx.strokeStyle = 'rgba(255,255,255,.35)';
   tracerCtx.lineWidth = 0.5;
   tracerCtx.beginPath();
   for (let n = 1; n <= 2; n++) {
-    tracerCtx.moveTo(ctl.x + bw*n/3, ctl.y);
-    tracerCtx.lineTo(ctl.x + bw*n/3, cbr.y);
-    tracerCtx.moveTo(ctl.x, ctl.y + bh*n/3);
-    tracerCtx.lineTo(cbr.x, ctl.y + bh*n/3);
+    tracerCtx.moveTo(x0 + bw*n/3, y0);
+    tracerCtx.lineTo(x0 + bw*n/3, -y0);
+    tracerCtx.moveTo(x0, y0 + bh*n/3);
+    tracerCtx.lineTo(-x0, y0 + bh*n/3);
   }
+  tracerCtx.stroke();
+  // Rotation knob above the top edge
+  tracerCtx.strokeStyle = '#fff';
+  tracerCtx.lineWidth = 1;
+  tracerCtx.beginPath();
+  tracerCtx.moveTo(0, y0);
+  tracerCtx.lineTo(0, y0 - ROT_HANDLE_DIST);
+  tracerCtx.stroke();
+  tracerCtx.beginPath();
+  tracerCtx.arc(0, y0 - ROT_HANDLE_DIST, 5, 0, Math.PI * 2);
+  tracerCtx.fillStyle = '#fff';
+  tracerCtx.fill();
+  tracerCtx.strokeStyle = 'rgba(0,0,0,.5)';
   tracerCtx.stroke();
   // Corner handles
   const hs = 10;
-  tracerCtx.fillStyle = '#fff';
-  tracerCtx.strokeStyle = 'rgba(0,0,0,.5)';
-  tracerCtx.lineWidth = 1;
   // tall targets: bars in the middle of the top and bottom edge (height handles)
   if (tallTarget()) {
-    const mx = (ctl.x + cbr.x) / 2;
-    [ctl.y, cbr.y].forEach(hy => {
-      tracerCtx.fillRect(mx - hs * 1.5, hy - hs / 3, hs * 3, hs * 2 / 3);
-      tracerCtx.strokeRect(mx - hs * 1.5, hy - hs / 3, hs * 3, hs * 2 / 3);
+    [y0, -y0].forEach(hy => {
+      tracerCtx.fillRect(-hs * 1.5, hy - hs / 3, hs * 3, hs * 2 / 3);
+      tracerCtx.strokeRect(-hs * 1.5, hy - hs / 3, hs * 3, hs * 2 / 3);
     });
   }
-  [[ctl.x, ctl.y],[cbr.x, ctl.y],[ctl.x, cbr.y],[cbr.x, cbr.y]].forEach(([hx,hy]) => {
+  [[x0, y0], [-x0, y0], [x0, -y0], [-x0, -y0]].forEach(([hx, hy]) => {
     tracerCtx.fillRect(hx - hs/2, hy - hs/2, hs, hs);
     tracerCtx.strokeRect(hx - hs/2, hy - hs/2, hs, hs);
   });
-  // Dimension label — for C64 show visual (display) size
-  const dimLabel = TR.target ? `${TR.dstW * TR.aspect}×${TR.dstH} (C64)` : `${TR.dstW}×${TR.dstH}`;
-  tracerCtx.fillStyle = 'rgba(0,0,0,.7)';
-  tracerCtx.fillRect(ctl.x, cbr.y, 126, 18);
-  tracerCtx.fillStyle = '#fff';
+  tracerCtx.restore();
+
+  // Dimension label below the box — for C64 show visual (display) size
+  const size  = TR.target ? `${TR.dstW * TR.aspect}×${TR.dstH} (C64)` : `${TR.dstW}×${TR.dstH}`;
+  const label = TR.cropRot ? `${size} · ${TR.cropRot}°` : size;
+  const lx = Math.min(...corners.map(p => p.x)), ly = Math.max(...corners.map(p => p.y));
+  tracerCtx.save();
   tracerCtx.font = '11px monospace';
-  tracerCtx.fillText(dimLabel, ctl.x + 4, cbr.y + 13);
+  tracerCtx.fillStyle = 'rgba(0,0,0,.7)';
+  tracerCtx.fillRect(lx, ly, tracerCtx.measureText(label).width + 8, 18);
+  tracerCtx.fillStyle = '#fff';
+  tracerCtx.fillText(label, lx + 4, ly + 13);
   tracerCtx.restore();
 }
 
-// ── Crop resize ───────────────────────────────────────────────
+// ── Pan, crop drag, resize and rotate ─────────────────────────
 
-function tracerResizeCropTo(cx, cy) {
-  const ip  = canvasToImg(cx, cy);
-  const AR  = (TR.dstW * TR.aspect) / TR.dstH;
-  const ax  = TR.resizeAnchorImgX, ay = TR.resizeAnchorImgY;
-  const iw  = TR.srcImage.naturalWidth, ih = TR.srcImage.naturalHeight;
-  const h   = TR.resizeHandle;
-
-  // Distance from fixed anchor to mouse in image space
-  const dw = Math.abs(ip.x - ax);
-  const dh = Math.abs(ip.y - ay);
-
-  // Dominant axis → maintain aspect ratio
-  let newW, newH;
-  if (dw === 0 && dh === 0) { newW = 8; newH = 8 / AR; }
-  else if (dw / (dh || 0.0001) >= AR) {
-    newW = Math.max(8, dw);
-    newH = newW / AR;
-  } else {
-    newH = Math.max(8 / AR, dh);
-    newW = newH * AR;
-  }
-
-  // Place top-left based on which corner is being dragged
-  let x0 = (h === 'nw' || h === 'sw') ? ax - newW : ax;
-  let y0 = (h === 'nw' || h === 'ne') ? ay - newH : ay;
-
-  // Clamp to image bounds
-  x0 = Math.max(0, Math.min(iw - 1, x0));
-  y0 = Math.max(0, Math.min(ih - 1, y0));
-  newW = Math.min(iw - x0, newW);
-  newH = Math.min(ih - y0, newH);
-
-  TR.cropX = x0;
-  TR.cropY = y0;
-  TR.cropW = Math.max(1, newW);
-  TR.cropH = Math.max(1, newH);
-}
-
-// ── Pan + crop drag ───────────────────────────────────────────
+const isInteracting = () => TR.isPanning || TR.isDraggingCrop || TR.isResizingCrop || TR.isRotatingCrop;
 
 tracerWrap.addEventListener('mousedown', e => {
   if (!TR.srcImage) return;
@@ -268,25 +349,24 @@ tracerWrap.addEventListener('mousedown', e => {
   const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
 
   const handle = tracerGetHandle(cx, cy);
-  if (handle) {
-    // Resize the crop box — store the fixed (anchor) corner in image space
-    TR.isResizingCrop   = true;
-    TR.resizeHandle     = handle;
-    const anchorMap = {
-      nw: [TR.cropX + TR.cropW, TR.cropY + TR.cropH],
-      ne: [TR.cropX,             TR.cropY + TR.cropH],
-      sw: [TR.cropX + TR.cropW, TR.cropY],
-      se: [TR.cropX,             TR.cropY],
-      s:  [TR.cropX,             TR.cropY],
-      n:  [TR.cropX,             TR.cropY + TR.cropH],
-    };
-    [TR.resizeAnchorImgX, TR.resizeAnchorImgY] = anchorMap[handle];
+  if (handle === 'rotate') {
+    TR.isRotatingCrop = true;
+    TR.rotStartAngle  = pointerAngle(cx, cy);
+    TR.rotStartValue  = TR.cropRot;
+  } else if (handle) {
+    // Resize the crop box — store the fixed (anchor) corner/edge in image space
+    TR.isResizingCrop = true;
+    TR.resizeHandle   = handle;
+    [TR.resizeSignX, TR.resizeSignY] = HANDLE_SIGNS[handle];
+    const anchor = localToImg(-TR.resizeSignX * TR.cropW / 2, -TR.resizeSignY * TR.cropH / 2);
+    TR.resizeAnchorImgX = anchor.x;
+    TR.resizeAnchorImgY = anchor.y;
   } else if (inCropBox(cx, cy)) {
     // Move the crop box
     TR.isDraggingCrop = true;
-    const ip = canvasToImg(cx, cy);
-    TR.cropDragOX = ip.x - TR.cropX;
-    TR.cropDragOY = ip.y - TR.cropY;
+    const ip = canvasToImg(cx, cy), c = cropCenter();
+    TR.cropDragOX = ip.x - c.x;
+    TR.cropDragOY = ip.y - c.y;
   } else {
     // Pan the source image
     TR.isPanning  = true;
@@ -301,15 +381,19 @@ document.addEventListener('mousemove', e => {
   const rect = tracerCanvas.getBoundingClientRect();
   const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
 
-  if (TR.isResizingCrop) {
-    if (TR.resizeHandle === 'n' || TR.resizeHandle === 's') tracerResizeEdgeTo(cy);
+  if (TR.isRotatingCrop) {
+    tracerRotateCropTo(cx, cy, e.shiftKey);
+    tracerRender();
+  } else if (TR.isResizingCrop) {
+    if (TR.resizeHandle === 'n' || TR.resizeHandle === 's') tracerResizeEdgeTo(cx, cy);
     else tracerResizeCropTo(cx, cy);
     tracerRender();
   } else if (TR.isDraggingCrop) {
+    // the box may stick out of the image (traced as black), but its centre stays on it
     const ip = canvasToImg(cx, cy);
     const iw = TR.srcImage.naturalWidth, ih = TR.srcImage.naturalHeight;
-    TR.cropX = Math.max(0, Math.min(iw - TR.cropW, ip.x - TR.cropDragOX));
-    TR.cropY = Math.max(0, Math.min(ih - TR.cropH, ip.y - TR.cropDragOY));
+    setCropCenter(Math.max(0, Math.min(iw, ip.x - TR.cropDragOX)),
+                  Math.max(0, Math.min(ih, ip.y - TR.cropDragOY)));
     tracerRender();
   } else if (TR.isPanning) {
     TR.viewOriginX += cx - TR.panStartX;
@@ -320,10 +404,11 @@ document.addEventListener('mousemove', e => {
 });
 
 document.addEventListener('mouseup', () => {
-  if (TR.isPanning || TR.isDraggingCrop || TR.isResizingCrop) {
+  if (isInteracting()) {
     TR.isPanning      = false;
     TR.isDraggingCrop = false;
     TR.isResizingCrop = false;
+    TR.isRotatingCrop = false;
     TR.resizeHandle   = null;
     tracerWrap.classList.remove('grabbing');
     tracerLivePreview();
@@ -337,16 +422,22 @@ tracerWrap.addEventListener('wheel', e => {
   tracerZoomBy(e.deltaY < 0 ? 1.12 : 1/1.12, cx, cy);
 }, { passive: false });
 
-// Cursor feedback: resize handles / move / grab
+// Cursor feedback: resize handles (following the box rotation) / rotate / move / grab
+const RESIZE_CURSORS = ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize'];
+
+function resizeCursor(handle) {
+  const [sx, sy] = HANDLE_SIGNS[handle];
+  const deg = Math.atan2(sy, sx) * 180 / Math.PI + TR.cropRot;
+  return RESIZE_CURSORS[Math.round((((deg % 180) + 180) % 180) / 45) % 4];
+}
+
 tracerWrap.addEventListener('mousemove', e => {
-  if (TR.isPanning || TR.isDraggingCrop || TR.isResizingCrop) return;
-  if (!TR.srcImage) return;
+  if (isInteracting() || !TR.srcImage) return;
   const rect = tracerCanvas.getBoundingClientRect();
   const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
   const handle = tracerGetHandle(cx, cy);
-  if      (handle === 'nw' || handle === 'se') tracerWrap.style.cursor = 'nwse-resize';
-  else if (handle === 'ne' || handle === 'sw') tracerWrap.style.cursor = 'nesw-resize';
-  else if (handle === 'n'  || handle === 's')  tracerWrap.style.cursor = 'ns-resize';
-  else if (inCropBox(cx, cy))                  tracerWrap.style.cursor = 'move';
-  else                                         tracerWrap.style.cursor = 'grab';
+  if      (handle === 'rotate')  tracerWrap.style.cursor = 'crosshair';
+  else if (handle)               tracerWrap.style.cursor = resizeCursor(handle);
+  else if (inCropBox(cx, cy))    tracerWrap.style.cursor = 'move';
+  else                           tracerWrap.style.cursor = 'grab';
 });

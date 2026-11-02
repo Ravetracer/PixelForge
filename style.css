@@ -13,7 +13,7 @@
   --border:    #313244;
   --radius:    6px;
   --toolbar-h: 48px;
-  --tools-w:   104px;
+  --tools-w:   128px;
   --palette-w: 252px;
   --status-h:  28px;
   --shadow:    0 4px 16px rgba(0,0,0,.5);
@@ -277,9 +277,13 @@ body {
 .hex-row { display: flex; align-items: center; gap: 6px; }
 .hex-row label { font-size: 11px; color: var(--subtext); }
 .hex-field {
+  /* width 0 + flex: the field takes only the space left in the row instead of its intrinsic ~20ch */
   flex: 1;
-  height: 24px;
-  padding: 0 6px;
+  width: 0;
+  min-width: 0;
+  max-width: 76px;
+  height: 22px;
+  padding: 0 4px;
   background: var(--surface1);
   border: 1px solid var(--surface2);
   border-radius: 4px;
@@ -568,6 +572,30 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
   cursor: pointer;
 }
 .slider-row span  { font-size: 10px; color: var(--subtext); min-width: 30px; text-align: right; }
+.slider-row .ref-num {
+  width: 48px;
+  min-width: 0;
+  padding: 1px 3px;
+  font-size: 10px;
+  font-family: inherit;
+  text-align: right;
+  background: var(--surface1);
+  color: var(--text);
+  border: 1px solid var(--surface2);
+  border-radius: var(--radius);
+}
+.slider-row .ref-num:focus { outline: none; border-color: var(--accent); }
+.slider-row .ref-spacer { flex: 1; min-width: 0; }
+#btn-ref-lock.active { border-color: var(--yellow, #f9e2af); color: var(--yellow, #f9e2af); }
+.ref-info button:disabled, .ref-info input:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Reference adjust overlay: covers the visible canvas view, catches the mouse only in adjust mode */
+#ref-handles {
+  position: absolute;
+  z-index: 5;
+  cursor: move;
+}
+#btn-ref-adjust.active { border-color: var(--accent); color: var(--accent); background: var(--surface2); }
 
 /* ──────────────────────────────── PALETTE ──────────────────────────────── */
 .color-grid {
@@ -1043,6 +1071,15 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
   font-family: inherit;
 }
 .tracer-number:focus { outline: none; border-color: var(--accent); }
+.tracer-rot-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--subtext);
+  margin-right: 6px;
+}
+.tracer-rot-input { width: 62px; padding: 2px 4px; }
 
 .tracer-check-field { flex-direction: row; align-items: center; }
 .tracer-check-label {

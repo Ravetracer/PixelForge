@@ -25,9 +25,9 @@ export function snapshotLayers() {
   };
 }
 
-/** Mode state of stateful C64 modes (NUFLI memory image) travels with the history. */
+/** C64 mode state (NUFLI memory images, sprite colours) travels with the history. */
 function cloneC64Data(data) {
-  return data ? { ...data, mem: new Uint8Array(data.mem) } : null;
+  return data ? structuredClone(data) : null;
 }
 
 function restoreSnapshot(snap) {

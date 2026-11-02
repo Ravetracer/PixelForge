@@ -243,7 +243,6 @@ function decodeFliFrame(bitmap, screens, color, m, bugChars) {
 
 const fli = {
   id: 'fli', label: 'FLI (multicolor)', width: 160, height: 200, aspect: 2, charW: 4, bugChars: 3,
-  tall: true,   // any height in steps of 8, saved as 200-line pages
   fits: (get, x, y) => fliCellFits([get], x, y),
   encode(idx, bg) {
     const { frames: [f], color } = encodeFliFrames([idx], bg, this.bugChars);
@@ -270,7 +269,6 @@ const ifli = {
 
 const afli = {
   id: 'afli', label: 'AFLI (hires FLI)', width: 320, height: 200, aspect: 1, charW: 8, bugChars: 3,
-  tall: true,
   bgIsColor: true,
 
   fits(get, x, y) {
@@ -314,44 +312,65 @@ const nufli = {
 
 export const MODES = { multicolor, hires, fli, afli, ifli, nufli };
 
-// ── Tall pictures (FLI, AFLI): 200-line pages ─────────────────
-//    The colour rules are local to character cells and lines, and a page of
-//    200 lines is exactly 25 character rows, so a tall picture is encoded,
-//    checked and saved page by page with the standard 200-line encoders.
+// ── Tall pictures: pages of the native height ─────────────────
+//    The colour rules are local to character cells and lines, and a page
+//    (mode.height lines, e.g. 200 = 25 character rows) holds whole cells, so
+//    a picture of any height is encoded, checked and saved page by page with
+//    the standard encoders. Every page becomes one file of the mode's format.
 
-export const PAGE_HEIGHT = 200;
 export const TALL_MAX_HEIGHT = 2000;
 
-/** Snap a requested height to the allowed range (multiples of 8). */
-export function tallHeight(h) {
-  return Math.max(8, Math.min(TALL_MAX_HEIGHT, Math.round((h || PAGE_HEIGHT) / 8) * 8));
+/** Height steps of a mode: whole character rows (8 lines) unless the mode says otherwise. */
+export const heightStep = mode => mode.heightStep ?? 8;
+
+/** Snap a requested height to the steps and range allowed for a mode. */
+export function snapHeight(mode, h) {
+  const step = heightStep(mode);
+  const max = Math.floor(TALL_MAX_HEIGHT / step) * step;
+  return Math.max(step, Math.min(max, Math.round((h || mode.height) / step) * step));
 }
 
-/** Split an index buffer into 200-line pages; the last page is padded with BG. */
-export function splitPages(idx, width, height) {
+/** Number of pages (files) a picture of this height needs. */
+export const pageCount = (mode, height) => Math.ceil(height / mode.height);
+
+/** Split an index buffer into pages of `pageH` lines; the last page is padded with `fill`. */
+export function splitPages(idx, width, height, pageH, fill = BG) {
   const pages = [];
-  for (let y0 = 0; y0 < height; y0 += PAGE_HEIGHT) {
-    const page = new Uint8Array(width * PAGE_HEIGHT).fill(BG);
-    page.set(idx.subarray(y0 * width, Math.min(height, y0 + PAGE_HEIGHT) * width));
+  for (let y0 = 0; y0 < height; y0 += pageH) {
+    const page = new Uint8Array(width * pageH).fill(fill);
+    page.set(idx.subarray(y0 * width, Math.min(height, y0 + pageH) * width));
     pages.push(page);
   }
   return pages;
 }
 
-/** Encode a (possibly tall) picture: one VIC data model per 200-line page. */
-export function encodePages(mode, idx, bg, height) {
-  return splitPages(idx, mode.width, height).map(page => mode.encode(page, bg));
-}
-
-/** Snap a (possibly tall) picture to the mode's colour rules, page by page. */
-export function enforcePages(mode, idx, bg, height) {
-  const out = new Uint8Array(mode.width * height);
-  splitPages(idx, mode.width, height).forEach((page, i) => {
-    const decoded = mode.decode(mode.encode(page, bg));
-    const rows = Math.min(PAGE_HEIGHT, height - i * PAGE_HEIGHT);
-    out.set(decoded.subarray(0, rows * mode.width), i * PAGE_HEIGHT * mode.width);
+/** Join page buffers back into one buffer of `height` lines (padding dropped). */
+export function joinPages(pages, width, height, pageH) {
+  const out = new Uint8Array(width * height);
+  pages.forEach((page, i) => {
+    const rows = Math.min(pageH, height - i * pageH);
+    out.set(page.subarray(0, rows * width), i * pageH * width);
   });
   return out;
+}
+
+/**
+ * Encode a picture of any height: one VIC data model per page.
+ * `input` is an index buffer, or one buffer per frame for interlaced modes.
+ */
+export function encodePages(mode, input, bg, height, params) {
+  const split = idx => splitPages(idx, mode.width, height, mode.height);
+  if (!mode.frames) return split(input).map(page => mode.encode(page, bg, params));
+  const perFrame = input.map(split);
+  return perFrame[0].map((_, i) => mode.encode(perFrame.map(pages => pages[i]), bg, params));
+}
+
+/** Snap a picture of any height to the mode's colour rules; same shape as `input`. */
+export function enforcePages(mode, input, bg, height, params) {
+  const decoded = encodePages(mode, input, bg, height, params).map(m => mode.decode(m));
+  const join = pages => joinPages(pages, mode.width, height, mode.height);
+  if (!mode.frames) return join(decoded);
+  return input.map((_, f) => join(decoded.map(frames => frames[f])));
 }
 
 export function currentMode() {

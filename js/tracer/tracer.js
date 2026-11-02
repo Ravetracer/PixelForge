@@ -9,9 +9,9 @@ import { updateCursorForLock } from '../input.js';
 import { renderLayerPanel } from '../layer-panel.js';
 import { BG, c64IndexOfHex, nearestC64Color } from '../c64/colors.js';
 import { updateC64UI } from '../c64/c64-ui.js';
-import { MODES, enforcePages } from '../c64/modes.js';
+import { MODES, enforcePages, joinPages, splitPages } from '../c64/modes.js';
 import { openC64Document } from '../c64/c64-document.js';
-import { decodeNufli, emptyNufliMemory, encodeNufliRegion } from '../c64/nufli.js';
+import { decodeNufli, encodeNufliRegion, newNufliMemory } from '../c64/nufli.js';
 import { updateSizeSelect } from '../document.js';
 import { showToast } from '../toast.js';
 import { TR, tracerResultCtx, tracerResultEl, tracerWrap } from './tracer-state.js';
@@ -218,19 +218,23 @@ function convertToMode(mode, rgba, w, h) {
   const toBg = idx => idx.map(c => (c === bgIdx ? BG : c));
 
   if (mode.id === 'nufli') {
-    const mem = emptyNufliMemory();
-    seedNufliBugColors(mem, solid, w);
-    encodeNufliRegion(mem, solid, new Float32Array(w * h).fill(1), { x0: 0, y0: 0, x1: w - 1, y1: h - 1 });
-    const idx = decodeNufli(mem);
-    return { mode, bgIdx, indices: toBg(idx), data: { mem, extra: new Uint8Array(0), template: false }, ...displayOf(idx, 320, 200) };
+    // one memory image per 200-line page
+    const pages = splitPages(solid, w, h, mode.height, bgIdx).map(page => {
+      const mem = newNufliMemory(bgIdx);
+      seedNufliBugColors(mem, page, w);
+      encodeNufliRegion(mem, page, new Float32Array(page.length).fill(1), { x0: 0, y0: 0, x1: w - 1, y1: mode.height - 1 });
+      return { mem, extra: new Uint8Array(0) };
+    });
+    const idx = joinPages(pages.map(p => decodeNufli(p.mem)), w, h, mode.height);
+    return { mode, bgIdx, indices: toBg(idx), data: { pages }, ...displayOf(idx, w, h) };
   }
   if (mode.frames) {
     const frames = splitInterlaced(rgba, w, h, C64_PALETTE_RGB).map(toBg);
-    const decoded = mode.decode(mode.encode(frames, bgIdx));
-    return { mode, bgIdx, indices: decoded, ...displayOf(blendFrames(decoded, bgIdx), 320, 200, true) };
+    const decoded = enforcePages(mode, frames, bgIdx, h);
+    return { mode, bgIdx, indices: decoded, ...displayOf(blendFrames(decoded, bgIdx, h), w, h, true) };
   }
-  // FLI/AFLI may be taller than 200 lines: their rules are applied page by page
-  const decoded = mode.tall ? enforcePages(mode, toBg(solid), bgIdx, h) : mode.decode(mode.encode(toBg(solid), bgIdx));
+  // pictures taller than one screen: the rules are applied page by page
+  const decoded = enforcePages(mode, toBg(solid), bgIdx, h);
   const shown = decoded.map(c => (c === BG ? bgIdx : c));
   return { mode, bgIdx, indices: decoded, ...displayOf(shown, w, h, false, mode.aspect) };
 }
@@ -264,10 +268,10 @@ function displayOf(idx, w, h, isRgb = false, aspect = 1) {
 }
 
 /** IFLI frames → blended 320-wide RGBA (frame 2 one hires pixel to the right). */
-function blendFrames([f1, f2], bgIdx) {
-  const out = new Uint8ClampedArray(320 * 200 * 4);
+function blendFrames([f1, f2], bgIdx, h) {
+  const out = new Uint8ClampedArray(320 * h * 4);
   const col = c => C64_PALETTE_RGB[c === BG ? bgIdx : c];
-  for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
+  for (let y = 0; y < h; y++) for (let x = 0; x < 320; x++) {
     const a = col(f1[y * 160 + (x >> 1)]);
     const b = x > 0 ? col(f2[y * 160 + ((x - 1) >> 1)]) : C64_PALETTE_RGB[bgIdx];
     const o = (y * 320 + x) * 4;

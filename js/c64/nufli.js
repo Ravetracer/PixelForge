@@ -1,4 +1,5 @@
 import { BG, c64ColorDistance } from './colors.js';
+import { SPRITE_Y_MOVES, TEMPLATE_BLOCKS } from './nufli-template.js';
 
 // ══════════════════════════════════════════════════════════════
 //  NUFLI (Crest NUFLI Editor .nuf) — hires FLI every 2 lines plus
@@ -116,11 +117,20 @@ export function decodeNufli(mem) {
   return idx;
 }
 
-/** Empty memory image: fixed sprite pointers, black everywhere, no displayer (cannot be saved). */
-export function emptyNufliMemory() {
+/**
+ * Memory image of a new picture: displayer template, fixed sprite pointers
+ * and a picture filled with the background colour. It can be saved as .nuf.
+ */
+export function newNufliMemory(bgIdx = 0) {
   const mem = new Uint8Array(NUF_SIZE);
+  for (const [addr, bytes] of TEMPLATE_BLOCKS) mem.set(bytes, at(addr));
   for (let k = 0; k < 8; k++) mem.set(UPPER_PTRS(k), at(0x4000 + k * 0x400 + 0x3f8));
   for (let k = 0; k < 4; k++) mem.set(LOWER_PTRS(k), at(0x2000 + k * 0x400 + 0x3f8));
+  for (const [col, row, entry] of SPRITE_Y_MOVES) mem[at(tableAddr(col, row))] = entry;
+  // bug-area sprite colours = background, so the FLI-bug strip blends in
+  for (const addr of [0x3ff0, 0x3ff1, 0x3ff6, 0x3ff7]) mem[at(addr)] = bgIdx;
+  const target = new Uint8Array(W * H).fill(bgIdx);
+  encodeNufliRegion(mem, target, new Float32Array(target.length).fill(1), { x0: 0, y0: 0, x1: W - 1, y1: H - 1 });
   return mem;
 }
 

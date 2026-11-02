@@ -13,10 +13,12 @@ import { showToast } from '../toast.js';
 import { dropFloating, resetSelection } from '../selection.js';
 import { makeBgLayer, updateC64UI } from './c64-ui.js';
 import { BG, c64IndexOfHex, indicesToPixels, pixelsToIndices } from './colors.js';
-import { MODES, PAGE_HEIGHT, currentMode, encodePages, enforcePages, modeRuleText, tallHeight } from './modes.js';
+import {
+  MODES, currentMode, encodePages, enforcePages, joinPages, modeRuleText, pageCount, snapHeight, splitPages,
+} from './modes.js';
 import { createZip } from '../zip.js';
 import { detectFormat, formatForMode } from './formats.js';
-import { decodeNufli, emptyNufliMemory, encodeNufliRegion } from './nufli.js';
+import { decodeNufli, encodeNufliRegion, newNufliMemory } from './nufli.js';
 
 // ══════════════════════════════════════════════════════════════
 //  C64 documents: open, load, export
@@ -24,7 +26,7 @@ import { decodeNufli, emptyNufliMemory, encodeNufliRegion } from './nufli.js';
 
 /**
  * Switch the editor to a C64 mode document built from an index buffer
- * (or one buffer per frame for interlaced modes).
+ * (or one buffer per frame for interlaced modes) of any page-aligned height.
  */
 export function openC64Document(modeId, indices, bgIdx, data = null, height = MODES[modeId].height) {
   const mode = MODES[modeId];
@@ -34,7 +36,7 @@ export function openC64Document(modeId, indices, bgIdx, data = null, height = MO
   S.pixelAspect = mode.aspect;
   S.c64BgColor = rgbaToHex(...C64_PALETTE_RGB[bgIdx]);
   S.width      = mode.width;
-  S.height     = mode.tall ? tallHeight(height) : mode.height;
+  S.height     = height;
   S.layerIdCtr = 0;
   const frames = mode.frames ? indices : [indices];
   S.layers = [
@@ -61,20 +63,20 @@ export function openC64Document(modeId, indices, bgIdx, data = null, height = MO
   updateC64UI();
 }
 
-/** Empty document in a C64 mode (tall modes accept a height). */
+/** Empty document in a C64 mode; the height is snapped to the mode's steps. */
 export function newC64Document(modeId, bgHex, height) {
   const mode = MODES[modeId];
   const bgIdx = c64IndexOfHex(bgHex);
-  if (modeId === 'nufli') {
-    // No displayer code without a loaded file: editable, but not savable
-    const data = { mem: emptyNufliMemory(), extra: new Uint8Array(0), template: false };
-    fillNufliBackground(data.mem, bgIdx);
-    openC64Document(modeId, new Uint8Array(mode.width * mode.height).fill(BG), bgIdx, data);
-    return;
-  }
-  const h = mode.tall ? tallHeight(height) : mode.height;
+  const h = snapHeight(mode, height);
   const empty = () => new Uint8Array(mode.width * h).fill(BG);
-  openC64Document(modeId, mode.frames ? Array.from({ length: mode.frames }, empty) : empty(), bgIdx, null, h);
+  let data = null;
+  if (mode.id === 'nufli') {
+    const mem = newNufliMemory(bgIdx);
+    data = { pages: Array.from({ length: pageCount(mode, h) }, () => ({ mem: new Uint8Array(mem), extra: new Uint8Array(0) })) };
+  } else if (mode.spriteColors) {
+    data = { sprites: mode.spriteColors.map(() => bgIdx) };
+  }
+  openC64Document(modeId, mode.frames ? Array.from({ length: mode.frames }, empty) : empty(), bgIdx, data, h);
 }
 
 /** Decode a picture file; returns false if the format is not recognised. */
@@ -88,14 +90,21 @@ export function loadC64Bytes(bytes, name) {
   if (bgIdx === undefined) {
     // Modes without a global background: use the most frequent colour as "background"
     const count = new Array(17).fill(0);
-    indices.forEach(c => count[c]++);
+    for (const idx of mode.frames ? indices : [indices]) idx.forEach(c => count[c]++);
     bgIdx = count.slice(0, 16).indexOf(Math.max(...count.slice(0, 16)));
   }
   for (const idx of mode.frames ? indices : [indices])
     for (let i = 0; i < idx.length; i++) if (idx[i] === bgIdx) idx[i] = BG;
-  openC64Document(format.mode, indices, bgIdx, mode.stateful ? model : null);
+  openC64Document(format.mode, indices, bgIdx, modeData(mode, model));
   showToast(`Loaded ${name} — ${format.label} (${mode.label})`, 'success');
   return true;
+}
+
+/** Document state kept next to the pixels: NUFLI memory, super hires sprite colours. */
+function modeData(mode, model) {
+  if (mode.stateful) return { pages: [model] };
+  if (mode.spriteColors) return { sprites: [...model.sprites] };
+  return null;
 }
 
 /** Composite of all visible layers at native resolution. */
@@ -126,6 +135,9 @@ export function frameIndices() {
     .map(l => pixelsToIndices(l.pixels, S.width, S.height, bgIdx));
 }
 
+/** Mode parameters for the encoders (super hires sprite colours). */
+export const modeParams = () => S.c64Data?.sprites;
+
 /**
  * Snap RGBA pixel buffers (one per drawing layer / frame) to the palette and
  * the colour rules of the current mode. Frames are enforced together.
@@ -134,60 +146,48 @@ export function enforceModeRules(pixelsList) {
   const mode = currentMode();
   const bgIdx = c64IndexOfHex(S.c64BgColor);
   if (mode.id === 'nufli') {
-    // Full re-encode into a scratch copy of the memory image
-    const mem = new Uint8Array(S.c64Data.mem);
+    // Full re-encode into scratch copies of the memory images
     const target = solidIndices(pixelsList[0], bgIdx);
-    encodeNufliRegion(mem, target, new Float32Array(target.length).fill(1), FULL_RECT);
-    return [indicesToPixels(withBg(decodeNufli(mem), bgIdx), bgIdx)];
+    const shown = nufliPages(target, bgIdx).map((page, i) => {
+      const mem = new Uint8Array(S.c64Data.pages[i].mem);
+      encodeNufliRegion(mem, page, new Float32Array(page.length).fill(1), FULL_RECT);
+      return decodeNufli(mem);
+    });
+    return [indicesToPixels(withBg(joinPages(shown, 320, S.height, PAGE_H), bgIdx), bgIdx)];
   }
   const idxList = pixelsList.map(p => pixelsToIndices(p, S.width, S.height, bgIdx));
   const decoded = mode.frames
-    ? mode.decode(mode.encode(idxList, bgIdx))
-    : idxList.map(idx => (mode.tall ? enforcePages(mode, idx, bgIdx, S.height) : mode.decode(mode.encode(idx, bgIdx))));
+    ? enforcePages(mode, idxList, bgIdx, S.height, modeParams())
+    : idxList.map(idx => enforcePages(mode, idx, bgIdx, S.height, modeParams()));
   return decoded.map(idx => indicesToPixels(idx, bgIdx));
 }
 
-/** Save the picture in the native file format of the current mode. */
+/**
+ * Save the picture in the native file format of the current mode: one file
+ * per page of the mode's native height (the last page padded with
+ * background). Several pages are downloaded as one ZIP.
+ */
 export function exportC64() {
   dropFloating();
   const mode = currentMode();
   if (!mode) return;
   const format = formatForMode(mode.id);
   if (!format) { showToast(`No file format for ${mode.label} yet`, 'error'); return; }
-  if (S.width !== mode.width || (!mode.tall && S.height !== mode.height)) {
-    showToast(`${mode.label} requires ${mode.width}×${mode.height}`, 'error'); return;
-  }
-  if (mode.tall && S.height !== PAGE_HEIGHT) { exportPages(mode, format); return; }
+  if (S.width !== mode.width) { showToast(`${mode.label} requires a width of ${mode.width}`, 'error'); return; }
   const bgIdx = c64IndexOfHex(S.c64BgColor);
-  if (mode.stateful && !S.c64Data?.template) {
-    showToast(`${mode.label} can only be saved for pictures loaded from a .nuf/.nup file`, 'error'); return;
-  }
-  const model = mode.stateful ? S.c64Data : mode.encode(mode.frames ? frameIndices() : currentIndices(), bgIdx);
-  const bytes = format.write(model);
-  const name = `image.${format.ext}`;
-  const a = document.createElement('a');
-  a.download = name;
-  a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
-  a.click();
-  URL.revokeObjectURL(a.href);
-  showToast(`Exported as ${name}`, 'success');
-}
-
-/**
- * Tall FLI/AFLI pictures: one standard file per 200-line page (the last page
- * padded with background). Several pages are downloaded as one ZIP.
- */
-function exportPages(mode, format) {
-  const bgIdx = c64IndexOfHex(S.c64BgColor);
-  const pages = encodePages(mode, currentIndices(), bgIdx, S.height).map(m => format.write(m));
-  if (pages.length === 1) {
-    download(pages[0], `image.${format.ext}`, 'application/octet-stream');
-    showToast(`Exported as image.${format.ext} (${S.height} lines, padded to ${PAGE_HEIGHT})`, 'success');
+  const models = mode.stateful
+    ? S.c64Data.pages
+    : encodePages(mode, mode.frames ? frameIndices() : currentIndices(), bgIdx, S.height, modeParams());
+  const files = models.map(m => format.write(m));
+  if (files.length === 1) {
+    download(files[0], `image.${format.ext}`, 'application/octet-stream');
+    const padded = S.height < mode.height ? ` (${S.height} lines, padded to ${mode.height})` : '';
+    showToast(`Exported as image.${format.ext}${padded}`, 'success');
     return;
   }
-  const files = pages.map((data, i) => ({ name: `image_${i + 1}.${format.ext}`, data }));
-  download(createZip(files), `image_${format.ext}_${S.height}.zip`, 'application/zip');
-  showToast(`Exported ${pages.length} × ${format.label} pages (${S.height} lines) as ZIP`, 'success');
+  const zipped = files.map((data, i) => ({ name: `image_${i + 1}.${format.ext}`, data }));
+  download(createZip(zipped), `image_${format.ext}_${S.height}.zip`, 'application/zip');
+  showToast(`Exported ${files.length} × ${format.label} pages (${S.height} lines) as ZIP`, 'success');
 }
 
 function download(bytes, name, type) {
@@ -200,6 +200,7 @@ function download(bytes, name, type) {
 
 // ── NUFLI: re-encode after each edit ──────────────────────────
 
+const PAGE_H = 200;
 const FULL_RECT = { x0: 0, y0: 0, x1: 319, y1: 199 };
 const KEEP_WEIGHT = 1000;   // existing pixels: keep unless impossible
 
@@ -215,16 +216,12 @@ function withBg(idx, bgIdx) {
   return idx;
 }
 
-function fillNufliBackground(mem, bgIdx) {
-  // bug-area sprite colours = background, so the FLI-bug strip blends in
-  for (const addr of [0x3ff0, 0x3ff1, 0x3ff6, 0x3ff7]) mem[addr - 0x2000] = bgIdx;
-  const target = new Uint8Array(320 * 200).fill(bgIdx);
-  encodeNufliRegion(mem, target, new Float32Array(target.length).fill(1), FULL_RECT);
-}
+/** Split a NUFLI picture into 200-line pages (padding = background). */
+const nufliPages = (idx, bgIdx, height = S.height) => splitPages(idx, 320, height, PAGE_H, bgIdx);
 
 /**
  * Called by commitHistory before a snapshot is taken: fit the pixels that
- * changed since `prev` into the NUFLI memory image and show the result.
+ * changed since `prev` into the NUFLI memory images and show the result.
  */
 export function afterC64Edit(prev) {
   const mode = currentMode();
@@ -234,10 +231,29 @@ export function afterC64Edit(prev) {
   if (li < 0 || !before || before.length !== S.layers[li].pixels.length) return;
 
   const bgIdx = c64IndexOfHex(S.c64BgColor);
-  const target = solidIndices(S.layers[li].pixels, bgIdx);
-  const old = solidIndices(before, bgIdx);
+  const targets = nufliPages(solidIndices(S.layers[li].pixels, bgIdx), bgIdx);
+  const olds = nufliPages(solidIndices(before, bgIdx), bgIdx);
+  let changed = false, adjusted = 0;
+  targets.forEach((target, i) => {
+    const { weight, rect } = editWeights(target, olds[i]);
+    if (!rect) return;
+    changed = true;
+    const mem = S.c64Data.pages[i].mem;
+    encodeNufliRegion(mem, target, weight, rect);
+    const rows = Math.min(PAGE_H, S.height - i * PAGE_H);
+    const shown = decodeNufli(mem).subarray(0, rows * 320);
+    for (let p = 0; p < shown.length; p++) if (shown[p] !== target[p]) adjusted++;
+    S.layers[li].pixels.set(indicesToPixels(withBg(shown, bgIdx), bgIdx), i * PAGE_H * 320 * 4);
+  });
+  if (!changed) return;
+  render();
+  if (adjusted) showToast(`${adjusted} pixel${adjusted > 1 ? 's' : ''} adjusted — ${modeRuleText(mode)}`, 'error');
+}
+
+/** Encoder weights for one page: changed pixels are free, the others should stay. */
+function editWeights(target, old) {
   const weight = new Float32Array(target.length);
-  const rect = { x0: 320, y0: 200, x1: -1, y1: -1 };
+  const rect = { x0: 320, y0: PAGE_H, x1: -1, y1: -1 };
   for (let p = 0; p < target.length; p++) {
     if (target[p] === old[p]) { weight[p] = KEEP_WEIGHT; continue; }
     weight[p] = 1;
@@ -245,13 +261,5 @@ export function afterC64Edit(prev) {
     rect.x0 = Math.min(rect.x0, x); rect.x1 = Math.max(rect.x1, x);
     rect.y0 = Math.min(rect.y0, y); rect.y1 = Math.max(rect.y1, y);
   }
-  if (rect.x1 < 0) return;
-
-  encodeNufliRegion(S.c64Data.mem, target, weight, rect);
-  const shown = decodeNufli(S.c64Data.mem);
-  let adjusted = 0;
-  for (let p = 0; p < shown.length; p++) if (shown[p] !== target[p]) adjusted++;
-  S.layers[li].pixels.set(indicesToPixels(withBg(shown, bgIdx), bgIdx));
-  render();
-  if (adjusted) showToast(`${adjusted} pixel${adjusted > 1 ? 's' : ''} adjusted — ${modeRuleText(mode)}`, 'error');
+  return { weight, rect: rect.x1 < 0 ? null : rect };
 }

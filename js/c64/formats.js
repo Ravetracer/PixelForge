@@ -309,13 +309,12 @@ const pixelPerfectPacked = {
 
 // ── NUFLI ─────────────────────────────────────────────────────
 
-/** NUFLI Editor (.nuf): memory $2000–$79ff incl. displayer; model = memory image (+ trailing bytes). */
+/** NUFLI Editor (.nuf): memory $2000–$79ff incl. displayer; model = memory image (+ trailing bytes of loaded files). */
 const nuf = {
   id: 'nuf', label: 'NUFLI Editor', ext: 'nuf', mode: 'nufli', loadAddress: 0x2000,
   detect: bytes => loadAddress(bytes) === 0x2000 && bytes.length >= 2 + NUF_SIZE && bytes.length <= 2 + NUF_SIZE + 256,
-  read: bytes => ({ mem: bytes.slice(2, 2 + NUF_SIZE), extra: bytes.slice(2 + NUF_SIZE), template: true }),
+  read: bytes => ({ mem: bytes.slice(2, 2 + NUF_SIZE), extra: bytes.slice(2 + NUF_SIZE) }),
   write(m) {
-    if (!m.template) throw new Error('NUFLI needs the displayer from a loaded .nuf/.nup file');
     const out = withLoadAddress(0x2000, 2 + NUF_SIZE + m.extra.length);
     out.set(m.mem, 2);
     out.set(m.extra, 2 + NUF_SIZE);
@@ -327,7 +326,7 @@ const nuf = {
 const nup = {
   id: 'nup', label: 'NUFLI Editor (packed)', ext: 'nup', mode: 'nufli', loadAddress: 0x0fff,
   detect: bytes => loadAddress(bytes) === 0x0fff && bytes[2] === 0xfd && bytes.length > 100,
-  read: bytes => ({ mem: unpackNup(bytes), extra: new Uint8Array(0), template: true }),
+  read: bytes => ({ mem: unpackNup(bytes), extra: new Uint8Array(0) }),
 };
 
 /** All known formats; the first writable one per mode is its save format. */

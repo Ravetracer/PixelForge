@@ -1,10 +1,10 @@
 import { $ } from '../dom.js';
 import { TR, tracerCanvas, tracerCtx, tracerWrap } from './tracer-state.js';
 import { tracerLivePreview } from './tracer.js';
-import { MODES, tallHeight } from '../c64/modes.js';
+import { MODES, heightStep, snapHeight } from '../c64/modes.js';
 
-/** FLI/AFLI targets: the crop height is free (steps of 8 lines) via the top/bottom edges. */
-const tallTarget = () => !!MODES[TR.target]?.tall;
+/** C64 targets: the crop height is free (in the mode's line steps) via the top/bottom edges. */
+const tallTarget = () => !!MODES[TR.target];
 
 // ── Canvas sizing ─────────────────────────────────────────────
 
@@ -115,8 +115,8 @@ function tracerGetHandle(cx, cy) {
 }
 
 /**
- * Drag the top/bottom edge: the width stays, the height snaps to whole
- * character rows (8 lines) and becomes the target height.
+ * Drag the top/bottom edge: the width stays, the height snaps to the
+ * mode's line steps (usually whole character rows) and becomes the target height.
  */
 function tracerResizeEdgeTo(cy) {
   const ip = canvasToImg(0, cy);
@@ -124,8 +124,9 @@ function tracerResizeEdgeTo(cy) {
   const ay = TR.resizeAnchorImgY;
   const pxPerLine = TR.cropW / (TR.dstW * TR.aspect);       // source pixels per C64 line
   const room = TR.resizeHandle === 's' ? ih - ay : ay;       // space up to the image edge
-  const maxLines = Math.max(8, Math.floor(room / pxPerLine / 8) * 8);
-  const lines = Math.min(maxLines, tallHeight(Math.abs(ip.y - ay) / pxPerLine));
+  const mode = MODES[TR.target], step = heightStep(mode);
+  const maxLines = Math.max(step, Math.floor(room / pxPerLine / step) * step);
+  const lines = Math.min(maxLines, snapHeight(mode, Math.abs(ip.y - ay) / pxPerLine));
   TR.cropH = lines * pxPerLine;
   TR.cropY = TR.resizeHandle === 's' ? ay : ay - TR.cropH;
   if (lines !== TR.dstH) {

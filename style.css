@@ -890,8 +890,8 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  width: min(96vw, 1100px);
-  height: min(90vh, 760px);
+  width: min(98vw, 1680px);
+  height: min(94vh, 960px);
   overflow: hidden;
 }
 
@@ -1051,10 +1051,6 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
 }
 .tracer-check-label input { accent-color: var(--accent); cursor: pointer; }
 
-.tracer-result-box {
-  margin-top: 10px;
-  flex-shrink: 0;
-}
 /* Enhancement section */
 .tracer-section-label {
   display: flex;
@@ -1122,14 +1118,25 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
 }
 .tracer-lospec-row .lospec-input { flex: 1; }
 
+/* Result pane: same frame as the source pane, canvas fills the area */
+.tracer-pane-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 6px;
+}
+#tracer-result-wrap {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+  background: #111;
+}
+#tracer-result-wrap.grabbing { cursor: grabbing; }
 #tracer-result-canvas {
   display: block;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  image-rendering: pixelated;
-  max-width: 100%;
-  margin-top: 4px;
-  background: #111;
+  position: absolute;
+  inset: 0;
 }
 
 /* ══════════════════════════════════════════════════════════════

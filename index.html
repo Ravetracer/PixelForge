@@ -482,7 +482,25 @@
           <div class="tracer-hint">Drag to pan · Scroll to zoom · Drag crop box to reposition</div>
         </div>
 
-        <!-- Right: settings + result preview -->
+        <!-- Middle: traced result with zoom, 1:1 view and panning -->
+        <div class="tracer-left tracer-result-pane">
+          <div class="tracer-preview-toolbar">
+            <span class="tracer-pane-title">Result</span>
+            <span id="tracer-result-info" class="tracer-src-info">—</span>
+            <div style="flex:1"></div>
+            <button id="tracer-result-zoom-out" class="tb-btn icon" title="Zoom out">−</button>
+            <span id="tracer-result-zoom" class="tb-info">—</span>
+            <button id="tracer-result-zoom-in"  class="tb-btn icon" title="Zoom in">+</button>
+            <button id="tracer-result-1to1" class="tb-btn" title="Actual pixels (1:1)">1:1</button>
+            <button id="tracer-result-fit"  class="tb-btn" title="Fit to view">Fit</button>
+          </div>
+          <div id="tracer-result-wrap">
+            <canvas id="tracer-result-canvas"></canvas>
+          </div>
+          <div class="tracer-hint">Drag to pan · Scroll to zoom · Grid from 6× per pixel</div>
+        </div>
+
+        <!-- Right: settings -->
         <div class="tracer-right">
 
           <div class="tracer-section-label">Destination</div>
@@ -664,12 +682,6 @@
               <input type="checkbox" id="tracer-invert">
               Invert colors
             </label>
-          </div>
-
-          <div class="tracer-result-box">
-            <div class="tracer-section-label">Result preview</div>
-            <canvas id="tracer-result-canvas"></canvas>
-            <div id="tracer-result-info" class="tracer-src-info" style="margin-top:4px">—</div>
           </div>
 
           <button id="tracer-execute" class="tb-btn accent fw" style="margin-top:8px">Trace to Canvas</button>

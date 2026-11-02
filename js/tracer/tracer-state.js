@@ -41,5 +41,3 @@ export const TR = {
 export const tracerCanvas   = $('tracer-canvas');
 export const tracerCtx      = tracerCanvas.getContext('2d');
 export const tracerWrap     = $('tracer-canvas-wrap');
-export const tracerResultEl = $('tracer-result-canvas');
-export const tracerResultCtx = tracerResultEl.getContext('2d');

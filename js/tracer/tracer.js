@@ -14,7 +14,8 @@ import { openC64Document } from '../c64/c64-document.js';
 import { decodeNufli, encodeNufliRegion, newNufliMemory } from '../c64/nufli.js';
 import { updateSizeSelect } from '../document.js';
 import { showToast } from '../toast.js';
-import { TR, tracerResultCtx, tracerResultEl, tracerWrap } from './tracer-state.js';
+import { TR, tracerWrap } from './tracer-state.js';
+import { resultViewShown, setResultImage } from './result-view.js';
 import { tracerFitToView, tracerRender, tracerResizeCanvas, tracerUpdateCropFromDst } from './viewport.js';
 import { applyDithering } from './dither.js';
 import { applyEnhancements, tracerDownscale } from './image-processing.js';
@@ -30,6 +31,7 @@ function openTracer() {
   $('tracer-overlay').classList.remove('hidden');
   tracerResizeCanvas();
   tracerRender();
+  resultViewShown();
 }
 
 function closeTracer() {
@@ -289,22 +291,10 @@ function blendFrames([f1, f2], bgIdx, h, mode) {
 }
 
 function _showTracerResult(pixels, w, h) {
-  // Fit result into the result canvas area
-  const maxW = 220, maxH = 180;
-  const scale = Math.min(maxW / w, maxH / h, 4);
-  const dw = Math.round(w * scale), dh = Math.round(h * scale);
-
-  tracerResultEl.width  = dw;
-  tracerResultEl.height = dh;
-
-  const tmp = document.createElement('canvas');
-  tmp.width = w; tmp.height = h;
-  tmp.getContext('2d').putImageData(new ImageData(pixels, w, h), 0, 0);
-
-  tracerResultCtx.imageSmoothingEnabled = false;
-  tracerResultCtx.drawImage(tmp, 0, 0, dw, dh);
   const mode = MODES[TR.target];
-  $('tracer-result-info').textContent = mode ? `${mode.label} · ${mode.width} × ${TR.dstH}` : `${w} × ${h} px`;
+  const info = mode ? `${mode.label} · ${mode.width} × ${TR.dstH}` : `${w} × ${h} px`;
+  // wide C64 pixels are doubled in the display image: the grid follows the real pixels
+  setResultImage(pixels, w, h, mode && !mode.frameShift ? mode.aspect : 1, info);
 }
 
 // ── Execute trace → load into main canvas ─────────────────────

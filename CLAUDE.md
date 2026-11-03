@@ -22,7 +22,9 @@ js/ - Application code as native ES modules (no bundler):
 - brush.js - Brush footprint (size/shape), mirror symmetry, tile-mode wrapping, dither/shade inks
 - selection.js, selection-tools.js - Selection mask (`S.selection`), floating pixels (`S.floating`), transforms, clipboard, marching ants; mouse handling for select/lasso/wand/move
 - palette.js, color-controls.js, adjustments.js, reference.js - Palette/Lospec, colour pickers, image adjustments, reference image
-- crt.js - CRT look for the preview window
+- crt.js - simple CRT look for the preview window (Canvas 2D)
+- pal/ - PAL video chain emulation for the preview window (WebGL2): pal-settings.js (parameters, presets, persistence on `S.palSettings`), pal-shaders.js (GLSL passes: encode, demodulate, filter + delay line, picture tube, bloom), pal-renderer.js (multipass renderer), pal-panel.js (settings panel)
+- floating-panel.js - draggable floating panels (preview window, PAL settings), clamped to the editor area
 - zip.js - minimal stored-ZIP writer (multi-file downloads, e.g. tall FLI/AFLI pages)
 - io.js, document.js, preview-window.js, toolbar.js, shortcuts.js, toast.js, help.js - Files, new image, UI chrome
 - c64/ - C64 graphics modes: modes.js (colour rules, encode/decode per mode, page split for tall pictures), formats.js (file formats: detect/read/write), c64-document.js (open/load/export), nufli.js (NUFLI memory model, decoder, region encoder), nufli-template.js (NUFLI displayer template for new pictures), superhires.js (SHI, SHF-XL, SHIF modes with global sprite colours), d64.js + disk-browser.js (D64 directory), colors.js, c64-ui.js

@@ -12,7 +12,7 @@ Runs entirely in the browser — plain HTML, CSS and JavaScript (ES modules), no
 - Layers with opacity, undo/redo, reference image overlay, live preview window
 - Palettes, including Lospec palette search
 - Image tracer: converts images into pixel art (edge-preserving smoothing, outlines, clean colour areas) or dithered graphics, for normal images and every C64 mode
-- Preview window with CRT emulation and interlace flicker
+- Preview window with a simple CRT look, a PAL video chain emulation (VIC-II signal, PAL encoding/decoding with delay line, RF/composite artifacts, picture tube; WebGL2) and interlace flicker
 
 ### C64 graphics modes
 

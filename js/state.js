@@ -59,7 +59,10 @@ const S_base = {
   layerIdCtr: 0,
   previewScale: 2,
   previewVisible: true,
-  previewCrt: false,
+  previewDisplay: 'plain',   // preview look: 'plain' | 'crt' | 'pal'
+  palSettings: null,         // PAL emulation parameters (js/pal/pal-settings.js)
+  palPreset: 'monitor',
+  palAnimate: true,
   previewFlicker: false,
   cursorX: -1,
   cursorY: -1,

@@ -252,14 +252,31 @@
                 <option value="custom">…</option>
               </select>
               <input type="number" id="preview-scale-custom" class="preview-scale-custom hidden" min="1" max="64" value="4" title="Custom scale">
-              <button type="button" id="btn-preview-crt" class="preview-toggle" title="CRT emulation: scanlines, phosphor glow, slight blur">CRT</button>
+              <select id="preview-display-select" class="preview-scale-select" title="Display: plain pixels, simple CRT look, or PAL video chain emulation">
+                <option value="plain">Plain</option>
+                <option value="crt">CRT</option>
+                <option value="pal">PAL</option>
+              </select>
+              <button type="button" id="btn-preview-pal-settings" class="preview-toggle hidden" title="PAL emulation settings">⚙</button>
               <button type="button" id="btn-preview-flicker" class="preview-toggle" title="Interlace flicker: show both IFLI frames alternately at 50 Hz, like a real C64" disabled>Flicker</button>
+              <button type="button" id="btn-reset-preview-pos" class="preview-close-btn" title="Reset position (or double-click the header)">⟲</button>
               <button type="button" id="btn-hide-preview" class="preview-close-btn" title="Hide preview (P)">✕</button>
             </div>
           </div>
           <div id="mini-preview-view" class="mini-preview-view">
             <canvas id="mini-preview"></canvas>
           </div>
+        </div>
+        <div id="pal-panel" class="pal-panel hidden">
+          <div class="pal-panel-header" id="pal-panel-header">
+            <span class="mini-preview-label" title="Drag to move, double-click to reset the position">PAL emulation</span>
+            <button type="button" id="btn-pal-panel-close" class="preview-close-btn" title="Close">✕</button>
+          </div>
+          <div class="pal-panel-top">
+            <select id="pal-preset" title="Preset"></select>
+            <label class="pal-animate" title="Live signal at 50 Hz: noise, interference and jitter move like on a real screen"><input type="checkbox" id="pal-animate"> Animate</label>
+          </div>
+          <div id="pal-panel-body" class="pal-panel-body"></div>
         </div>
         <div id="status-bar">
           <span id="status-pos">— , —</span>
@@ -885,8 +902,9 @@
           <p>NUFLI combines hires FLI with sprites behind the bitmap, and even covers the FLI bug area with sprites. Its colour limits depend on each other across whole columns, so instead of blocking a stroke PixelForge fits it in after you release the mouse: pixels that NUFLI cannot show get the nearest possible colour, and a message tells you how many. Pixels outside the stroke are never changed.</p>
           <p>* A <code>.nuf</code> file contains the NUFLI display program. PixelForge keeps it from the loaded file, so saving works for pictures loaded from <code>.nuf</code> or <code>.nup</code> files. A new NUFLI picture can be edited but not saved.</p>
 
-          <h3>Preview: CRT and flicker</h3>
-          <p>The preview window has two display options. <strong>CRT</strong> imitates a monitor: scanlines, phosphor glow and the slight blur of a composite signal. <strong>Flicker</strong> (IFLI only) shows the two frames alternately at 50&nbsp;Hz like a real C64, instead of the steady mix. Both settings are remembered in the browser.</p>
+          <h3>Preview: CRT, PAL and flicker</h3>
+          <p>The display select in the preview window offers three looks. <strong>Plain</strong> shows the bare pixels. <strong>CRT</strong> is a simple monitor look: scanlines, phosphor glow and slight blur. <strong>PAL</strong> emulates the whole video chain of a C64: the VIC-II output with its slow luma edges and bus crosstalk, PAL modulation of the colour signal, the transmission (RGB, Luma/Chroma, composite or RF with noise, ghosting and interference), the PAL decoder with its delay line (the colour blending of neighbouring lines that C64 artists rely on) and finally the picture tube with beam-shaped scanlines, shadow mask, bloom, afterglow and curvature. The ⚙ button opens its settings with presets; <em>Animate</em> runs the signal live at 50&nbsp;Hz. PAL needs WebGL2.</p>
+          <p><strong>Flicker</strong> (IFLI only) shows the two frames alternately at 50&nbsp;Hz like a real C64, instead of the steady mix. All settings are remembered in the browser.</p>
 
           <h3>IFLI frames</h3>
           <p>IFLI shows two FLI pictures alternately, the second shifted by half a pixel. The eye mixes them, which gives more colours and finer horizontal detail. In PixelForge the frames are the layers <strong>Frame 1</strong> and <strong>Frame 2</strong>; select a layer to paint on that frame. The canvas shows the mixed result; hide one frame layer to see the other on its own.</p>

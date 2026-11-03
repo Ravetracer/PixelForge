@@ -3,6 +3,11 @@ import { $, canvasContainer, mainCanvas, miniPreviewCanvas, miniPreviewCtx, off,
 import { layerPixelsForDisplay } from './selection.js';
 import { interlaceImage } from './render.js';
 import { renderCrt } from './crt.js';
+import { makeDraggable } from './floating-panel.js';
+import { showToast } from './toast.js';
+import { PalRenderer } from './pal/pal-renderer.js';
+import { loadPalSettings } from './pal/pal-settings.js';
+import { initPalPanel, setPalPanelVisible } from './pal/pal-panel.js';
 
 // ══════════════════════════════════════════════════════════════
 //  Mini preview window
@@ -10,8 +15,13 @@ import { renderCrt } from './crt.js';
 
 let _pending = false;
 let _frames = [];          // presented preview images: 1, or 2 while interlace flicker runs
-let _flickerRaf = 0;
+let _animRaf = 0;
+let _lastTick = -1;
 let _shown = -1;
+let _pal = null;           // PalRenderer, created on first use
+let _palFailed = false;
+let _palActive = false;    // PAL emulation renders the current preview
+let _palSourceCount = 0;
 const PAL_FRAME_MS = 20;   // C64 PAL: 50 frames per second
 
 /** Schedule a preview update; several calls within one animation frame are merged. */
@@ -52,10 +62,40 @@ function drawPreview() {
   }
   const interlaced = isInterlacedDoc();
   $('btn-preview-flicker').disabled = !interlaced;
-  _frames = previewSources(interlaced).map(src => presentFrame(src, pw, ph));
+  const sources = previewSources(interlaced);
+  _palActive = S.previewDisplay === 'pal' && ensurePalRenderer();
   _shown = -1;
-  showFrame(0);
-  updateFlickerLoop();
+  if (_palActive) {
+    _frames = [];
+    _palSourceCount = sources.length;
+    _pal.setSources(sources, S.pixelAspect);
+    if (!needsAnimation()) {
+      _pal.resetPersistence();
+      renderPalFrame(0);
+    }
+  } else {
+    _frames = sources.map(src => presentFrame(src, pw, ph));
+    showFrame(0);
+  }
+  updateAnimationLoop();
+}
+
+/** Create the WebGL2 PAL renderer on first use; fall back to the CRT look when unavailable. */
+function ensurePalRenderer() {
+  if (_pal) return true;
+  if (!_palFailed) _pal = PalRenderer.create();
+  if (_pal) return true;
+  _palFailed = true;
+  showToast('PAL emulation needs WebGL2 — using the CRT look instead', 'error');
+  setPreviewDisplay('crt');
+  return false;
+}
+
+/** One PAL video frame (50 Hz tick `tick`); interlaced pictures alternate their two frames. */
+function renderPalFrame(tick) {
+  const src = _palSourceCount === 2 ? tick % 2 : 0;
+  const out = _pal.render(src, S.palAnimate ? tick : 0, miniPreviewCanvas.width, miniPreviewCanvas.height, S.palSettings);
+  miniPreviewCtx.drawImage(out, 0, 0);
 }
 
 /** Source pictures: layer composite, IFLI blend, or both IFLI frames for flicker. */
@@ -93,7 +133,7 @@ function presentFrame(src, pw, ph) {
   const out = document.createElement('canvas');
   out.width = pw; out.height = ph;
   const ctx = out.getContext('2d');
-  if (S.previewCrt) {
+  if (S.previewDisplay === 'crt') {
     renderCrt(ctx, src, pw, ph, ph / S.height);
     return out;
   }
@@ -115,44 +155,77 @@ function showFrame(i) {
   miniPreviewCtx.drawImage(_frames[i], 0, 0);
 }
 
-/** Interlace flicker: alternate the two frames at PAL frame rate, like the real C64 does. */
-function updateFlickerLoop() {
-  const run = S.previewVisible && _frames.length === 2;
-  if (run && !_flickerRaf) {
+/** The preview runs at 50 Hz while interlace flicker or the animated PAL signal is shown. */
+function needsAnimation() {
+  if (!S.previewVisible) return false;
+  if (_palActive) return S.palAnimate || _palSourceCount === 2;
+  return _frames.length === 2;
+}
+
+function updateAnimationLoop() {
+  const run = needsAnimation();
+  if (run && !_animRaf) {
+    _lastTick = -1;
     const tick = ts => {
-      if (!S.previewVisible || _frames.length !== 2) { _flickerRaf = 0; return; }
-      showFrame(Math.floor(ts / PAL_FRAME_MS) % 2);
-      _flickerRaf = requestAnimationFrame(tick);
+      if (!needsAnimation()) { _animRaf = 0; return; }
+      const n = Math.floor(ts / PAL_FRAME_MS);
+      if (n !== _lastTick) {
+        _lastTick = n;
+        if (_palActive) renderPalFrame(n);
+        else showFrame(n % 2);
+      }
+      _animRaf = requestAnimationFrame(tick);
     };
-    _flickerRaf = requestAnimationFrame(tick);
-  } else if (!run && _flickerRaf) {
-    cancelAnimationFrame(_flickerRaf);
-    _flickerRaf = 0;
+    _animRaf = requestAnimationFrame(tick);
+  } else if (!run && _animRaf) {
+    cancelAnimationFrame(_animRaf);
+    _animRaf = 0;
   }
 }
 
-// ── CRT / flicker toggles (remembered per browser) ────────────
+// ── Display mode (plain / CRT / PAL) and flicker toggle, remembered per browser ──
+
+const DISPLAY_MODES = ['plain', 'crt', 'pal'];
 
 function loadPreviewPrefs() {
   try {
-    S.previewCrt = localStorage.getItem('pf.previewCrt') === '1';
+    const stored = localStorage.getItem('pf.previewDisplay');
+    S.previewDisplay = DISPLAY_MODES.includes(stored) ? stored
+      : localStorage.getItem('pf.previewCrt') === '1' ? 'crt' : 'plain';
     S.previewFlicker = localStorage.getItem('pf.previewFlicker') === '1';
   } catch { /* storage unavailable */ }
-  $('btn-preview-crt').classList.toggle('active', S.previewCrt);
   $('btn-preview-flicker').classList.toggle('active', S.previewFlicker);
-  $('mini-preview').classList.toggle('crt', S.previewCrt);
+  applyDisplayModeUi();
 }
 
-function togglePreviewOption(key, buttonId, storageKey) {
-  S[key] = !S[key];
-  $(buttonId).classList.toggle('active', S[key]);
-  $('mini-preview').classList.toggle('crt', S.previewCrt);
-  try { localStorage.setItem(storageKey, S[key] ? '1' : '0'); } catch { /* storage unavailable */ }
+function applyDisplayModeUi() {
+  $('preview-display-select').value = S.previewDisplay;
+  $('mini-preview').classList.toggle('crt', S.previewDisplay !== 'plain');
+  $('btn-preview-pal-settings').classList.toggle('hidden', S.previewDisplay !== 'pal');
+  if (S.previewDisplay !== 'pal') setPalPanelVisible(false);
+}
+
+function setPreviewDisplay(mode) {
+  S.previewDisplay = mode;
+  applyDisplayModeUi();
+  try { localStorage.setItem('pf.previewDisplay', mode); } catch { /* storage unavailable */ }
   renderPreviewWindow();
 }
 
-$('btn-preview-crt').addEventListener('click', e => { e.stopPropagation(); togglePreviewOption('previewCrt', 'btn-preview-crt', 'pf.previewCrt'); });
-$('btn-preview-flicker').addEventListener('click', e => { e.stopPropagation(); togglePreviewOption('previewFlicker', 'btn-preview-flicker', 'pf.previewFlicker'); });
+$('preview-display-select').addEventListener('change', e => setPreviewDisplay(e.target.value));
+$('btn-preview-pal-settings').addEventListener('click', e => {
+  e.stopPropagation();
+  setPalPanelVisible($('pal-panel').classList.contains('hidden'));
+});
+$('btn-preview-flicker').addEventListener('click', e => {
+  e.stopPropagation();
+  S.previewFlicker = !S.previewFlicker;
+  $('btn-preview-flicker').classList.toggle('active', S.previewFlicker);
+  try { localStorage.setItem('pf.previewFlicker', S.previewFlicker ? '1' : '0'); } catch { /* storage unavailable */ }
+  renderPreviewWindow();
+});
+loadPalSettings();
+initPalPanel(renderPreviewWindow);
 loadPreviewPrefs();
 
 // ══════════════════════════════════════════════════════════════
@@ -189,32 +262,6 @@ $('preview-scale-custom').addEventListener('change', e => {
   renderPreviewWindow();
 });
 
-// Drag logic
-let _pvDragging = false, _pvDragOffX = 0, _pvDragOffY = 0, _pvParentL = 0, _pvParentT = 0;
-
-$('mini-preview-header').addEventListener('mousedown', e => {
-  if (e.target.closest('select, input, button')) return;
-  _pvDragging = true;
-  const r  = _pvBox.getBoundingClientRect();
-  const pr = _pvBox.parentElement.getBoundingClientRect();
-  _pvParentL  = pr.left;
-  _pvParentT  = pr.top;
-  _pvDragOffX = e.clientX - r.left;
-  _pvDragOffY = e.clientY - r.top;
-  // Switch from CSS bottom/right to absolute left/top on first drag
-  if (!_pvBox.style.left) {
-    _pvBox.style.left   = (r.left - pr.left) + 'px';
-    _pvBox.style.top    = (r.top  - pr.top)  + 'px';
-    _pvBox.style.right  = 'auto';
-    _pvBox.style.bottom = 'auto';
-  }
-  e.preventDefault();
-});
-
-document.addEventListener('mousemove', e => {
-  if (!_pvDragging) return;
-  _pvBox.style.left = (e.clientX - _pvDragOffX - _pvParentL) + 'px';
-  _pvBox.style.top  = (e.clientY - _pvDragOffY - _pvParentT) + 'px';
-});
-
-document.addEventListener('mouseup', () => { _pvDragging = false; });
+// Drag (kept inside the editor area); double-click on the header or ⟲ resets the position
+const { resetPosition: resetPreviewPosition } = makeDraggable(_pvBox, $('mini-preview-header'));
+$('btn-reset-preview-pos').addEventListener('click', e => { e.stopPropagation(); resetPreviewPosition(); });

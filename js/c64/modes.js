@@ -264,6 +264,28 @@ const ifli = {
     return { frames, color, bg };
   },
   decode(m) { return m.frames.map(f => decodeFliFrame(f.bitmap, f.screens, m.color, m, this.bugChars)); },
+  /**
+   * Colours each frame can show: one bitmask per raster line and character
+   * column (index y * 40 + cx) — background, the line's two screen colours
+   * and the cell's colour RAM; the FLI bug columns show background only.
+   */
+  allowedColors(m) {
+    return m.frames.map(f => {
+      const masks = new Uint16Array(200 * CHARS_X);
+      for (let cy = 0; cy < CHARS_Y; cy++) for (let cx = 0; cx < CHARS_X; cx++) {
+        const cell = cy * CHARS_X + cx;
+        for (let r = 0; r < 8; r++) {
+          let bits = 1 << m.bg;
+          if (cx >= this.bugChars) {
+            const scr = f.screens[r][cell];
+            bits |= (1 << (scr >> 4)) | (1 << (scr & 15)) | (1 << (m.color[cell] & 15));
+          }
+          masks[(cy * 8 + r) * CHARS_X + cx] = bits;
+        }
+      }
+      return masks;
+    });
+  },
 };
 
 // ── AFLI — hires with a screen RAM per raster line (8×1 cell: 2 colours) ─

@@ -473,6 +473,10 @@
             <label class="tracer-rot-label" title="Rotation of the selection — or drag the round knob above the box (Shift snaps to 15°)">↻
               <input type="number" id="tracer-rot" class="tracer-number tracer-rot-input" value="0" min="-180" max="180" step="0.5">°
             </label>
+            <label class="tracer-check-label tracer-snap-label" title="Snap the selection to the image edges while moving or resizing (unrotated selection only)">
+              <input type="checkbox" id="tracer-snap" checked>
+              Snap
+            </label>
             <button id="tracer-zoom-out" class="tb-btn icon" title="Zoom out">−</button>
             <span id="tracer-zoom-label" class="tb-info">—</span>
             <button id="tracer-zoom-in"  class="tb-btn icon" title="Zoom in">+</button>
@@ -525,6 +529,11 @@
           <div class="tracer-field hidden" id="tracer-c64-height-field" title="Height in steps of the mode (usually 8 lines). Taller than one screen is saved as several standard files (one per page).">
             <label>Height (lines)</label>
             <input type="number" id="tracer-c64-height" class="tracer-number" value="200" min="8" max="2000" step="8">
+          </div>
+          <div class="tracer-enh-slider hidden" id="tracer-flicker-field" title="Interlaced modes: how far apart in brightness the two mixed colours may be. Low = calm picture with fewer in-between colours, high = more colours but stronger flicker on a real C64.">
+            <label>Max. flicker</label>
+            <input type="range" id="tracer-flicker" min="0" max="100" value="25">
+            <span id="tracer-flicker-val">25</span>
           </div>
           <div class="tracer-field" id="tracer-size-field">
             <label>Size preset</label>
@@ -914,6 +923,7 @@
             <li><strong>Pan</strong> — drag anywhere in the preview canvas.</li>
             <li><strong>Zoom</strong> — scroll wheel, or use the − / + / Fit controls.</li>
             <li><strong>Crop box</strong> — the dashed rectangle defines which region of the source gets traced. Drag the box interior to reposition it; drag a corner handle to resize it. Only the area inside the box is used as input.</li>
+            <li><strong>Snap</strong> — while the box is not rotated, its edges snap to the image edges when moved or resized close to them. Untick to place it freely.</li>
           </ul>
 
           <h3>Target</h3>
@@ -929,7 +939,7 @@
             <li><strong>Checkerboard mixes</strong> — in-between tones become clean 2-colour checkerboards, as in hand-made C64 art (on by default for C64 targets except Hires).</li>
             <li><strong>Remove stray pixels</strong> — isolated single pixels are merged into their surroundings.</li>
           </ul>
-          <p>For IFLI the tracer works at 320 pixels width with all 136 colour mixes and splits the result into two frames whose blend matches the picture.</p>
+          <p>For IFLI the tracer works at 320 pixels width with the colour mixes of both frames and splits the result into two frames whose blend matches the picture. The split keeps both frames consistent from line to line and respects the FLI colour rules, so the mixes survive the conversion. For all interlaced modes (IFLI, SHI, SHIF), <strong>Max. flicker</strong> limits how far apart in brightness the two mixed colours may be: low values give a calm picture with fewer in-between colours, high values more colours but stronger flicker on a real C64. Hard edges between light and dark areas may still flicker on a single pixel, as in hand-made IFLI pictures.</p>
 
           <h3>Style: Photo</h3>
           <p>Averages the source and applies one of the dithering methods below — the classic conversion, better suited for photos with soft gradients.</p>

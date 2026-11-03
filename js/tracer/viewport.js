@@ -1,7 +1,7 @@
 import { $ } from '../dom.js';
 import { TR, tracerCanvas, tracerCtx, tracerWrap } from './tracer-state.js';
 import { tracerLivePreview } from './tracer.js';
-import { MODES, snapHeight } from '../c64/modes.js';
+import { MODES, heightStep, snapHeight } from '../c64/modes.js';
 
 /** C64 targets: the crop height is free (in the mode's line steps) via the top/bottom edges. */
 const tallTarget = () => !!MODES[TR.target];
@@ -146,6 +146,8 @@ export function tracerAdaptCrop() {
   setCropCenter(c.x, c.y);
 }
 
+$('tracer-snap').addEventListener('change', e => { TR.snapEdges = e.target.checked; });
+
 $('tracer-rot').addEventListener('input', e => {
   tracerSetCropRotation(parseFloat(e.target.value) || 0);
   tracerRender();
@@ -183,6 +185,65 @@ function tracerGetHandle(cx, cy) {
   return null;
 }
 
+// ── Snapping to the image edges ───────────────────────────────
+
+const SNAP_DIST = 8;   // canvas-px distance at which a box edge snaps to an image edge
+
+/** Snapping is optional and only meaningful while the box is axis-aligned. */
+const snapActive = () => TR.snapEdges && TR.cropRot === 0;
+
+/**
+ * Shift that moves the nearest of `edges` (image px) onto an image edge
+ * (0 or `limit`) within the snap distance; null if none is close enough.
+ */
+function snapOffset(edges, limit) {
+  const tol = SNAP_DIST / TR.viewScale;
+  let best = null;
+  for (const e of edges) for (const border of [0, limit]) {
+    const d = border - e;
+    if (Math.abs(d) <= tol && (best === null || Math.abs(d) < Math.abs(best))) best = d;
+  }
+  return best;
+}
+
+/** Moved box: its left/right and top/bottom edges snap independently. */
+function snapCropPosition() {
+  if (!snapActive()) return;
+  const dx = snapOffset([TR.cropX, TR.cropX + TR.cropW], TR.srcImage.naturalWidth);
+  const dy = snapOffset([TR.cropY, TR.cropY + TR.cropH], TR.srcImage.naturalHeight);
+  if (dx !== null) TR.cropX += dx;
+  if (dy !== null) TR.cropY += dy;
+}
+
+/**
+ * Corner resize with locked aspect ratio: the dragged corner snaps to the
+ * nearer close image edge, the other side follows the aspect ratio.
+ */
+function snapCornerSize(w, h, AR) {
+  if (!snapActive()) return [w, h];
+  const sx = TR.resizeSignX, sy = TR.resizeSignY;
+  const dx = snapOffset([TR.resizeAnchorImgX + sx * w], TR.srcImage.naturalWidth);
+  const dy = snapOffset([TR.resizeAnchorImgY + sy * h], TR.srcImage.naturalHeight);
+  const byX = dx !== null ? w + sx * dx : null, byY = dy !== null ? (h + sy * dy) * AR : null;
+  const useX = byX !== null && (byY === null || Math.abs(dx) <= Math.abs(dy));
+  const snappedW = useX ? byX : byY;
+  return snappedW !== null && snappedW >= 8 ? [snappedW, snappedW / AR] : [w, h];
+}
+
+/**
+ * Top/bottom edge resize: the height is a multiple of the mode's line step,
+ * so near an image edge the box takes the most lines that still fit inside.
+ */
+function snapEdgeLines(lines, pxPerLine) {
+  if (!snapActive()) return lines;
+  const edgeY = TR.resizeAnchorImgY + TR.resizeSignY * lines * pxPerLine;
+  if (snapOffset([edgeY], TR.srcImage.naturalHeight) === null) return lines;
+  const room = TR.resizeSignY > 0 ? TR.srcImage.naturalHeight - TR.resizeAnchorImgY : TR.resizeAnchorImgY;
+  const step = heightStep(MODES[TR.target]);
+  const fit = Math.floor(room / pxPerLine / step) * step;
+  return fit >= step ? snapHeight(MODES[TR.target], fit) : lines;
+}
+
 // ── Crop resize / rotate ──────────────────────────────────────
 
 /** New box size: the anchor (opposite corner or edge) stays fixed. */
@@ -214,7 +275,7 @@ function tracerResizeCropTo(cx, cy) {
     newH = Math.max(8 / AR, dh);
     newW = newH * AR;
   }
-  placeFromAnchor(newW, newH);
+  placeFromAnchor(...snapCornerSize(newW, newH, AR));
 }
 
 /**
@@ -224,7 +285,7 @@ function tracerResizeCropTo(cx, cy) {
 function tracerResizeEdgeTo(cx, cy) {
   const pxPerLine = TR.cropW / (TR.dstW * TR.aspect);   // source pixels per C64 line
   const dist = Math.max(1, anchorToPointer(cx, cy).y * TR.resizeSignY);
-  const lines = snapHeight(MODES[TR.target], dist / pxPerLine);
+  const lines = snapEdgeLines(snapHeight(MODES[TR.target], dist / pxPerLine), pxPerLine);
   placeFromAnchor(TR.cropW, lines * pxPerLine);
   if (lines !== TR.dstH) {
     TR.dstH = lines;
@@ -394,6 +455,7 @@ document.addEventListener('mousemove', e => {
     const iw = TR.srcImage.naturalWidth, ih = TR.srcImage.naturalHeight;
     setCropCenter(Math.max(0, Math.min(iw, ip.x - TR.cropDragOX)),
                   Math.max(0, Math.min(ih, ip.y - TR.cropDragOY)));
+    snapCropPosition();
     tracerRender();
   } else if (TR.isPanning) {
     TR.viewOriginX += cx - TR.panStartX;

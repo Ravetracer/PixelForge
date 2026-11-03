@@ -9,7 +9,7 @@ import { updateCursorForLock } from '../input.js';
 import { renderLayerPanel } from '../layer-panel.js';
 import { BG, c64IndexOfHex, nearestC64Color } from '../c64/colors.js';
 import { updateC64UI } from '../c64/c64-ui.js';
-import { MODES, enforcePages, joinPages, splitPages } from '../c64/modes.js';
+import { MODES, encodePages, enforcePages, joinPages, splitPages } from '../c64/modes.js';
 import { openC64Document } from '../c64/c64-document.js';
 import { decodeNufli, encodeNufliRegion, newNufliMemory } from '../c64/nufli.js';
 import { updateSizeSelect } from '../document.js';
@@ -20,7 +20,7 @@ import { tracerFitToView, tracerRender, tracerResizeCanvas, tracerResetCrop } fr
 import { applyDithering } from './dither.js';
 import { applyEnhancements, tracerDownscale } from './image-processing.js';
 import {
-  applyOutlines, buildMixPalette, cleanOutlineCorners, detectEdges, kuwahara, majorityDownscale,
+  applyOutlines, buildMixPalette, cleanOutlineCorners, detectEdges, flickerPairs, kuwahara, majorityDownscale,
   makePaletteMatcher, medianCut, pruneShortOutlines, removeStrayPixels, splitBlend, splitInterlaced,
 } from './pixelart.js';
 import { resetSelection } from '../selection.js';
@@ -95,8 +95,8 @@ tracerWrap.addEventListener('drop', e => {
 
 /** Palette as [r,g,b] list, or null for unrestricted full colour (photo style only). */
 function tracerBuildPalette(workPixels) {
-  // Interlaced modes show the average of two frames: trace against all 136 mixed colours
-  if (MODES[TR.target]?.frames && TR.style === 'pixel') return mixPalette();
+  // Interlaced modes show the average of two frames: trace against the mixes within the flicker limit
+  if (MODES[TR.target]?.frames && TR.style === 'pixel') return mixPalette(TR.maxFlicker);
   if (TR.target) return C64_PALETTE_RGB;
   if (TR.colorMode === 'palette') return TR.palette.map(hex => { const { r, g, b } = hexToRgba(hex); return [r, g, b]; });
   if (TR.colorMode === 'auto' || TR.style === 'pixel') return medianCut(workPixels, TR.colorMode === 'auto' ? TR.autoColors : 32);
@@ -192,17 +192,19 @@ function tracePixelArt(w, h) {
   return out;
 }
 
-let _mix = null;
-function mixPalette() {
-  if (!_mix) {
+const _mixes = new Map();
+/** Distinct averages of C64 colour pairs at most `maxGap` apart in lightness. */
+function mixPalette(maxGap) {
+  if (!_mixes.has(maxGap)) {
     const seen = new Map();
-    for (const a of C64_PALETTE_RGB) for (const b of C64_PALETTE_RGB) {
+    for (const [ia, ib] of flickerPairs(C64_PALETTE_RGB, maxGap)) {
+      const a = C64_PALETTE_RGB[ia], b = C64_PALETTE_RGB[ib];
       const m = [(a[0] + b[0]) >> 1, (a[1] + b[1]) >> 1, (a[2] + b[2]) >> 1];
       seen.set(m.join(','), m);
     }
-    _mix = [...seen.values()];
+    _mixes.set(maxGap, [...seen.values()]);
   }
-  return _mix;
+  return _mixes.get(maxGap);
 }
 
 /** Most frequent palette index (background candidate). */
@@ -234,8 +236,9 @@ function convertToMode(mode, rgba, w, h) {
   const params = input => (mode.spriteColors ? mode.chooseSprites(input, bgIdx) : undefined);
   const data = sprites => (sprites ? { sprites } : null);
   if (mode.frames) {
-    const split = mode.frameShift ? splitInterlaced : splitBlend;
-    const frames = split(rgba, w, h, C64_PALETTE_RGB).map(toBg);
+    const frames = mode.frameShift
+      ? splitIfli(mode, rgba, w, h, bgIdx).map(toBg)
+      : splitBlend(rgba, w, h, C64_PALETTE_RGB, TR.maxFlicker).map(toBg);
     const sprites = params(frames);
     const decoded = enforcePages(mode, frames, bgIdx, h, sprites);
     const dw = mode.width * mode.aspect;
@@ -246,6 +249,28 @@ function convertToMode(mode, rgba, w, h) {
   const decoded = enforcePages(mode, input, bgIdx, h, sprites);
   const shown = decoded.map(c => (c === BG ? bgIdx : c));
   return { mode, bgIdx, indices: decoded, data: data(sprites), ...displayOf(shown, w, h, false, mode.aspect) };
+}
+
+/**
+ * IFLI: split freely first, then split again within the colours the FLI
+ * encoder chose from that (2 per 4×1 line and frame + the shared colour RAM),
+ * so the colour pairs survive encoding instead of being snapped apart.
+ */
+function splitIfli(mode, rgba, w, h, bgIdx) {
+  const opts = { maxGap: TR.maxFlicker, bg: bgIdx };
+  const free = splitInterlaced(rgba, w, h, C64_PALETTE_RGB, opts);
+  const encoded = encodePages(mode, free, bgIdx, h);
+  const pageMasks = encoded.map(m => mode.allowedColors(m));
+  const cols = mode.width / mode.charW;
+  const allowed = free.map((_, f) => {
+    const masks = new Uint16Array(h * cols);
+    pageMasks.forEach((frames, p) => {
+      const rows = Math.min(mode.height, h - p * mode.height);
+      masks.set(frames[f].subarray(0, rows * cols), p * mode.height * cols);
+    });
+    return masks;
+  });
+  return splitInterlaced(rgba, w, h, C64_PALETTE_RGB, { ...opts, allowed });
 }
 
 /**

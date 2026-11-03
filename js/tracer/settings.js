@@ -41,6 +41,7 @@ export function tracerSetTarget(id) {
   $('tracer-pattern-mix').checked = TR.patternMix;
   $('tracer-size-field').classList.toggle('hidden', !!mode);
   $('tracer-c64-height-field').classList.toggle('hidden', !mode);
+  $('tracer-flicker-field').classList.toggle('hidden', !mode?.frames);
   $('tracer-custom-size').classList.toggle('hidden', !!mode || $('tracer-dst-preset').value !== 'custom');
   $('tracer-color-field').classList.toggle('hidden', !!mode);
   $('tracer-c64-group').classList.toggle('hidden', !mode || mode.id === 'nufli');
@@ -81,7 +82,7 @@ $('tracer-bg-auto').addEventListener('change', e => {
   $('tracer-c64-bg-field').classList.toggle('hidden', TR.bgAuto);
   tracerLivePreview();
 });
-for (const [id, key] of [['tracer-smoothing', 'smoothing'], ['tracer-outline', 'outline'], ['tracer-auto-colors', 'autoColors'], ['tracer-hue', 'huePriority']]) {
+for (const [id, key] of [['tracer-smoothing', 'smoothing'], ['tracer-outline', 'outline'], ['tracer-auto-colors', 'autoColors'], ['tracer-hue', 'huePriority'], ['tracer-flicker', 'maxFlicker']]) {
   $(id).addEventListener('input', e => {
     TR[key] = parseInt(e.target.value, 10);
     $(id + '-val').textContent = TR[key];

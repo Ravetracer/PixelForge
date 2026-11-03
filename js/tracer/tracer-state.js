@@ -14,12 +14,14 @@ export const TR = {
   viewOriginY: 0,
   // crop box in image-pixel coordinates (unrotated box), rotated by cropRot degrees around its centre
   cropX: 0, cropY: 0, cropW: 0, cropH: 0, cropRot: 0,
+  snapEdges: true,        // unrotated crop box snaps to the image edges
   // destination
   dstW: 160, dstH: 200,
   target: 'multicolor',   // '' = normal image, otherwise a C64 mode id
   aspect: 2,              // displayed width of one target pixel
   c64BgColor: '#000000',
   bgAuto: true,
+  maxFlicker: 25,         // interlaced modes: max lightness gap (Lab L) of mixed colour pairs
   style: 'pixel',         // 'pixel' (clean edges, outlines) or 'photo' (dithering)
   smoothing: 50,          // edge-preserving smoothing strength 0..100
   outline: 40,            // outline strength 0..100 (0 = off)

@@ -337,51 +337,93 @@ export function medianCut(px, n) {
   });
 }
 
-// ── IFLI: split a hires target into two shifted frames ────────
+// ── Interlace: two frames shown alternately ───────────────────
+//    The eye sees the average of both frames, but colours of different
+//    lightness flicker at 25 Hz. Pairs are limited by their lightness gap.
+
+const lightness = paletteRgb => paletteRgb.map(([r, g, b]) => rgbToLab(r, g, b)[0]);
+
+/** Palette index pairs [a, b] (a ≤ b) whose lightness differs by at most `maxGap` (Lab L). */
+export function flickerPairs(paletteRgb, maxGap) {
+  const L = lightness(paletteRgb), pairs = [];
+  for (let a = 0; a < L.length; a++)
+    for (let b = a; b < L.length; b++) if (Math.abs(L[a] - L[b]) <= maxGap) pairs.push([a, b]);
+  return pairs;
+}
+
+const FLICKER_WEIGHT = 0.02;   // per L²: among equal mixes, prefer frames of similar lightness
+const FLICKER_EXCESS = 1;      // per L² beyond the limit: only worth it at hard edges, never in areas
+const ROW_COHERENCE  = 50;     // cost of a frame colour differing from the row above
+const FRAME_ORDER    = 20;     // cost of frame 1 showing the lighter colour: keeps the frames' roles fixed
 
 /**
- * Hires pixel x shows avg(frame1[x>>1], frame2[(x-1)>>1]). Per row, a DP over
- * frame-2 colours picks both frames so the mixed result matches `target`
- * (palette indices, 320 wide). Returns two 160-wide index buffers.
+ * IFLI: hires pixel x shows avg(frame1[x>>1], frame2[(x-1)>>1]); hires pixel 0
+ * shows frame 1 over the background. Per row, a DP over frame-2 colours picks
+ * both frames so the mix matches `target` (RGBA, w2 wide) while
+ * - hires pixels mixing colours more than `maxGap` apart in lightness are
+ *   avoided (a hard edge may still flicker on one pixel, as on a real C64),
+ * - frame 1 takes the darker colour of each pair and each frame keeps the
+ *   colours of the row above where the target allows it (no stripes),
+ * - optional `allowed` bitmasks ([frame1, frame2], one per line and 4-pixel
+ *   column) restrict the colours, e.g. to what the FLI encoder can show.
+ * Returns two (w2/2)-wide index buffers.
  */
-export function splitInterlaced(targetRgb, w2, h, paletteRgb) {
-  const n = paletteRgb.length, w = w2 >> 1;
-  const mixLab = [];
+export function splitInterlaced(targetRgb, w2, h, paletteRgb, { maxGap = 100, bg = 0, allowed = null } = {}) {
+  const n = paletteRgb.length, w = w2 >> 1, cols = w >> 2;
+  const L = lightness(paletteRgb);
+  const mixLab = [], pairCost = new Float64Array(n * n);
   for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) {
     const [r1, g1, b1] = paletteRgb[a], [r2, g2, b2] = paletteRgb[b];
     mixLab.push(rgbToLab((r1 + r2) >> 1, (g1 + g2) >> 1, (b1 + b2) >> 1));
+    const gap = Math.abs(L[a] - L[b]);
+    pairCost[a * n + b] = FLICKER_WEIGHT * gap * gap + (gap > maxGap ? FLICKER_EXCESS * (gap - maxGap) ** 2 : 0)
+      + (L[a] > L[b] ? FRAME_ORDER : 0);
   }
   const f1 = new Uint8Array(w * h), f2 = new Uint8Array(w * h);
   const tLab = new Float32Array(w2 * 3);
   const cost = (x, a, b) => {
     const m = mixLab[a * n + b];
-    return (tLab[x * 3] - m[0]) ** 2 + (tLab[x * 3 + 1] - m[1]) ** 2 + (tLab[x * 3 + 2] - m[2]) ** 2;
+    return pairCost[a * n + b] + (tLab[x * 3] - m[0]) ** 2 + (tLab[x * 3 + 1] - m[1]) ** 2 + (tLab[x * 3 + 2] - m[2]) ** 2;
   };
+  // per-pixel cost of using colour c in a frame: forbidden by the mask, or a change against the row above
+  const unary = (out, frame, mask, y, i) => {
+    for (let c = 0; c < n; c++) {
+      if (mask && !(mask[y * cols + (i >> 2)] & (1 << c))) out[c] = Infinity;
+      else out[c] = y > 0 && frame[(y - 1) * w + i] !== c ? ROW_COHERENCE : 0;
+    }
+  };
+  const u1 = new Float64Array(n), u2 = new Float64Array(n);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w2; x++) {
       const i = (y * w2 + x) * 4;
-      const [L, A, B] = rgbToLab(targetRgb[i], targetRgb[i + 1], targetRgb[i + 2]);
-      tLab[x * 3] = L; tLab[x * 3 + 1] = A; tLab[x * 3 + 2] = B;
+      const [Lt, At, Bt] = rgbToLab(targetRgb[i], targetRgb[i + 1], targetRgb[i + 2]);
+      tLab[x * 3] = Lt; tLab[x * 3 + 1] = At; tLab[x * 3 + 2] = Bt;
     }
-    // state: frame-2 colour of fat pixel i-1 (x = 2i is covered by frame1[i] and frame2[i-1])
-    let dp = new Float64Array(n);          // frame2[-1] does not exist: hires x=0 shows frame1 only → use bg 0 mix
+    // state: frame-2 colour of fat pixel i-1 (hires x = 2i shows frame1[i] and frame2[i-1])
+    let dp = new Float64Array(n).fill(Infinity);
+    dp[bg] = 0;
     const back = [];
     for (let i = 0; i < w; i++) {
+      unary(u1, f1, allowed?.[0], y, i);
+      unary(u2, f2, allowed?.[1], y, i);
       // best previous frame-2 colour for each frame-1 colour a (independent of b)
-      const viaA = new Float64Array(n), prevOf = new Int16Array(n);
+      const viaA = new Float64Array(n).fill(Infinity), prevOf = new Int16Array(n);
       for (let a = 0; a < n; a++) {
-        let bestC = Infinity;
+        if (u1[a] === Infinity) continue;
         for (let prev2 = 0; prev2 < n; prev2++) {
+          if (dp[prev2] === Infinity) continue;
           const c = dp[prev2] + cost(2 * i, a, prev2);
-          if (c < bestC) { bestC = c; prevOf[a] = prev2; }
+          if (c < viaA[a]) { viaA[a] = c; prevOf[a] = prev2; }
         }
-        viaA[a] = bestC;
+        viaA[a] += u1[a];
       }
       const next = new Float64Array(n).fill(Infinity);
       const choice = new Int16Array(n * 2);
-      for (let a = 0; a < n; a++) {
-        for (let b = 0; b < n; b++) {
-          const c = viaA[a] + cost(2 * i + 1, a, b);
+      for (let b = 0; b < n; b++) {
+        if (u2[b] === Infinity) continue;
+        for (let a = 0; a < n; a++) {
+          if (viaA[a] === Infinity) continue;
+          const c = viaA[a] + cost(2 * i + 1, a, b) + u2[b];
           if (c < next[b]) { next[b] = c; choice[b * 2] = prevOf[a]; choice[b * 2 + 1] = a; }
         }
       }
@@ -403,14 +445,16 @@ export function splitInterlaced(targetRgb, w2, h, paletteRgb) {
 /**
  * Split a picture into two interlace frames shown on top of each other
  * (no shift, SHI/SHIF): every pixel becomes the palette pair whose average
- * is closest. Frame 1 gets the darker colour, so both frames stay coherent.
+ * is closest, limited to pairs at most `maxGap` apart in lightness.
+ * Frame 1 gets the darker colour, so both frames stay coherent.
  */
-export function splitBlend(targetRgb, w, h, paletteRgb) {
+export function splitBlend(targetRgb, w, h, paletteRgb, maxGap = 100) {
   const n = paletteRgb.length;
-  const lum = paletteRgb.map(([r, g, b]) => rgbToLab(r, g, b)[0]);
+  const lum = lightness(paletteRgb);
   const pairs = [];
   for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) {
     if (lum[a] > lum[b] || (lum[a] === lum[b] && a > b)) continue;
+    if (lum[b] - lum[a] > maxGap) continue;
     const [r1, g1, b1] = paletteRgb[a], [r2, g2, b2] = paletteRgb[b];
     pairs.push({ a, b, lab: rgbToLab((r1 + r2) >> 1, (g1 + g2) >> 1, (b1 + b2) >> 1) });
   }

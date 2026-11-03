@@ -1080,6 +1080,7 @@ body[data-tool="move"] #preview-canvas { cursor: move; }
   margin-right: 6px;
 }
 .tracer-rot-input { width: 62px; padding: 2px 4px; }
+.tracer-snap-label { gap: 4px; margin-right: 6px; color: var(--subtext); }
 
 .tracer-check-field { flex-direction: row; align-items: center; }
 .tracer-check-label {
